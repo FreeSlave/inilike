@@ -1,5 +1,5 @@
 /**
- * Reading and writing ini-like files, used in Unix systems in some fields.
+ * Reading and writing ini-like files, used in Unix systems.
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
  * License: 
@@ -30,7 +30,7 @@ private {
 private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier");
 private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 
-/** Retrieves current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
+/** Retrieve current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
  * Returns: locale in posix form or empty string if could not determine locale.
  * Note: currently this function caches its result.
  */
@@ -52,8 +52,9 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 }
 
 /**
- * Makes locale name based on language, country, encoding and modifier.
+ * Make locale name based on language, country, encoding and modifier.
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
+ * See_Also: parseLocaleName
  */
 @safe string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow
 {
@@ -61,8 +62,9 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 }
 
 /**
- * Parses locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
+ * Parse locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
  * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
+ * See_Also: makeLocaleName
  */
 @nogc @trusted auto parseLocaleName(string locale) pure nothrow
 {
@@ -81,13 +83,13 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 }
 
 /**
- * Constructs localized key name from key and locale.
+ * Construct localized key name from key and locale.
  * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
  * Example:
 ----------
 assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
 ----------
- * 
+ * See_Also: separateFromLocale
  */
 @safe string localizedKey(string key, string locale) pure nothrow
 {
@@ -111,9 +113,10 @@ assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
 }
 
 /** 
- * Separates key name into non-localized key and locale name.
+ * Separate key name into non-localized key and locale name.
  * If key is not localized returns original key and empty string.
- * Returns: tuple of key and locale name;
+ * Returns: tuple of key and locale name.
+ * See_Also: localizedKey
  */
 @nogc @trusted Tuple!(string, string) separateFromLocale(string key) pure nothrow {
     if (key.endsWith("]")) {
@@ -161,6 +164,7 @@ assert(isBoolean("false"));
 assert(isBoolean("0"));
 assert(!isBoolean("not boolean"));
 ---------
+ * See_Also: isTrue, isFalse
  */
 @nogc @safe bool isBoolean(string value) pure nothrow {
     return isTrue(value) || isFalse(value);
@@ -176,6 +180,7 @@ assert(!isBoolean("not boolean"));
 ----
 assert("\\next\nline".escapeValue() == `\\next\nline`); // notice how the string on the right is raw.
 ----
+ * See_Also: unescapeValue
  */
 @trusted string escapeValue(string value) nothrow pure {
     return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
@@ -209,6 +214,7 @@ assert("\\next\nline".escapeValue() == `\\next\nline`); // notice how the string
 -----
 assert(`\\next\nline`.unescapeValue() == "\\next\nline"); // notice how the string on the left is raw.
 ----
+ * See_Also: escapeValue
  */
 @trusted string unescapeValue(string value) nothrow pure
 {
@@ -220,28 +226,6 @@ assert(`\\next\nline`.unescapeValue() == "\\next\nline"); // notice how the stri
        tuple('\\', '\\')
     ];
     return doUnescape(value, pairs);
-}
-
-@trusted string unescapeExec(string str) nothrow pure
-{
-    static immutable Tuple!(char, char)[] pairs = [
-       tuple('"', '"'),
-       tuple('\'', '\''),
-       tuple('\\', '\\'),
-       tuple('>', '>'),
-       tuple('<', '<'),
-       tuple('~', '~'),
-       tuple('|', '|'),
-       tuple('&', '&'),
-       tuple(';', ';'),
-       tuple('$', '$'),
-       tuple('*', '*'),
-       tuple('?', '?'),
-       tuple('#', '#'),
-       tuple('(', '('),
-       tuple(')', ')'),
-    ];
-    return doUnescape(str, pairs);
 }
 
 /**
@@ -319,6 +303,7 @@ public:
     /**
      * Returns: the value associated with the key
      * Note: it's an error to access nonexistent value
+     * See_Also: value
      */
     @nogc @safe string opIndex(string key) const nothrow {
         auto i = key in _indices;
@@ -328,7 +313,7 @@ public:
     }
     
     /**
-     * Inserts new value or replaces the old one if value associated with key already exists.
+     * Insert new value or replaces the old one if value associated with key already exists.
      * Returns: inserted/updated value
      * Throws: $(B Exception) if key is not valid
      */
@@ -344,7 +329,7 @@ public:
         }
     }
     /**
-     * Ditto, but also allows to specify the locale.
+     * Ditto, localized version.
      * See_Also: setLocalizedValue, localizedValue
      */
     @safe string opIndexAssign(string value, string key, string locale) {
@@ -353,13 +338,14 @@ public:
     }
     
     /**
-     * Tells if group contains value associated with the key.
+     * Tell if group contains value associated with the key.
      */
     @nogc @safe bool contains(string key) const nothrow {
         return value(key) !is null;
     }
     
     /**
+     * Get value by key.
      * Returns: the value associated with the key, or defaultValue if group does not contain item with this key.
      */
     @nogc @safe string value(string key, string defaultValue = null) const nothrow {
@@ -374,9 +360,10 @@ public:
     }
     
     /**
-     * Performs locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
+     * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
      * If locale is null it calls currentLocale to get the locale.
      * Returns: the localized value associated with key and locale, or defaultValue if group does not contain item with this key.
+     * See_Also: currentLocale
      */
     @safe string localizedValue(string key, string locale = null, string defaultValue = null) const nothrow {
         if (locale is null) {
@@ -436,6 +423,7 @@ public:
     }
     
     /**
+     * Iterate by Key-Value pairs.
      * Returns: range of Tuple!(string, "key", string, "value")
      */
     @nogc @safe auto byKeyValue() const nothrow {
@@ -443,7 +431,8 @@ public:
     }
     
     /**
-     * Returns: the name of group
+     * Get name of this group.
+     * Returns: the name of this group.
      */
     @nogc @safe string name() const nothrow {
         return _name;
@@ -489,6 +478,7 @@ private:
 
 /**
  * Reads range of strings into the range of IniLikeLines.
+ * See_Also: iniLikeFileReader, iniLikeStringReader
  */
 @trusted auto iniLikeRangeReader(Range)(Range byLine) if(is(ElementType!Range == string))
 {
@@ -547,14 +537,14 @@ public:
     }
     
     /**
-     * Constructs empty IniLikeFile, i.e. without any groups or values
+     * Construct empty IniLikeFile, i.e. without any groups or values
      */
     @nogc @safe this() nothrow {
         
     }
     
     /**
-     * Reads from file.
+     * Read from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
      *  $(B IniLikeException) if error occured while reading the file.
@@ -564,7 +554,7 @@ public:
     }
     
     /**
-     * Reads from range of $(B IniLikeLine)s.
+     * Read from range of $(B IniLikeLine)s.
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
@@ -629,7 +619,9 @@ public:
     }
     
     /**
+     * Get group by name.
      * Returns: IniLikeGroup instance associated with groupName or $(B null) if not found.
+     * See_Also: byGroup
      */
     @nogc @safe inout(IniLikeGroup) group(string groupName) nothrow inout {
         auto pick = groupName in _groupIndices;
@@ -640,9 +632,10 @@ public:
     }
     
     /**
-     * Creates new group usin groupName.
+     * Create new group using groupName.
      * Returns: newly created instance of IniLikeGroup.
      * Throws: Exception if group with such name already exists or groupName is empty.
+     * See_Also: removeGroup, group
      */
     @safe IniLikeGroup addGroup(string groupName) {
         enforce(groupName.length, "empty group name");
@@ -656,7 +649,8 @@ public:
     }
     
     /**
-     * Removes group by name.
+     * Remove group by name.
+     * See_Also: addGroup, group
      */
     @safe void removeGroup(string groupName) nothrow {
         auto pick = groupName in _groupIndices;
@@ -667,18 +661,20 @@ public:
     
     /**
      * Range of groups in order how they were defined in file.
+     * See_Also: group
      */
     @nogc @safe auto byGroup() {
-        return _groups[].map!(g => g); //to prevent elements be accessible as lvalues
+        return _groups[].filter!(g => g !is null).map!(g => g); //to prevent elements be accessible as lvalues
     }
     ///ditto
     @nogc @safe auto byGroup() const {
-        return _groups[];
+        return _groups[].filter!(g => g !is null);
     }
     
     /**
-     * Saves object to file using .ini like format.
+     * Save object to the file using .ini-like format.
      * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
+     * See_Also: saveToString, save
      */
     @trusted void saveToFile(string fileName) const {
         auto f = File(fileName, "w");
@@ -689,7 +685,9 @@ public:
     }
     
     /**
-     * Saves object to string using .ini like format.
+     * Save object to string using .ini like format.
+     * Returns: string representing the contents of file.
+     * See_Also: saveToFile, save
      */
     @safe string saveToString() const {
         auto a = appender!(string[])();
@@ -700,8 +698,17 @@ public:
         return a.data.join("\n");
     }
     
+    /**
+     * Alias for saving delegate.
+     * See_Also: save
+     */
     alias SaveDelegate = void delegate(string);
     
+    /**
+     * Use delegate to retrieve strings line by line. 
+     * Those strings can be written to the file or be showed in text area.
+     * Note: returned strings don't have trailing newline character.
+     */
     @trusted void save(SaveDelegate sink) const {
         foreach(line; firstComments()) {
             sink(line);
@@ -720,6 +727,7 @@ public:
     }
     
     /**
+     * File path where the object was loaded from.
      * Returns: file name as was specified on the object creation.
      */
     @nogc @safe string fileName() nothrow const {
@@ -727,7 +735,7 @@ public:
     }
     
     /**
-    * Tells whether the string is valid key. For IniLikeFile the valid key is any non-empty string.
+    * Tell whether the string is valid key. For IniLikeFile the valid key is any non-empty string.
     * Reimplement this function in the derived class to throw exception from IniLikeGroup when key is invalid.
     */
     @nogc @safe bool isValidKey(string key) pure nothrow const {
@@ -788,8 +796,8 @@ unittest
     assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
     
     //Test escaping and unescaping
-    assert("\\next\nline".escapeValue() == `\\next\nline`);
-    assert(`\\next\nline`.unescapeValue() == "\\next\nline");
+    assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`);
+    assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top");
     
     //Test key types functions
     assert(isTrue("true"));
@@ -816,33 +824,69 @@ GenericName[ru]=Файловый менеджер
 # Another comment
 [Another Group]
 Name=Commander
+Comment=Manage files
 # The last comment`;
 
     auto ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.preserveComments);
     assert(ilf.group("First Entry"));
     assert(ilf.group("Another Group"));
-    
-    assert(ilf.group("First Entry")["GenericName"] == "File manager");
-    assert(ilf.group("First Entry").localizedValue("GenericName", "ru") == "Файловый менеджер");
-    
-    assert(ilf.group("Another Group")["Name"] == "Commander");
-    
     assert(ilf.saveToString() == contents);
-    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group"]));
-    
-    ilf.removeGroup("Another Group");
-    assert(!ilf.group("Another Group"));
-    
-    ilf.addGroup("Another Group");
-    assert(ilf.group("Another Group"));
-    assert(ilf.group("Another Group").byIniLine().empty);
     
     auto firstEntry = ilf.group("First Entry");
+    
+    assert(firstEntry["GenericName"] == "File manager");
+    assert(firstEntry.value("GenericName") == "File manager");
+    firstEntry["GenericName"] = "Manager of files";
+    assert(firstEntry["GenericName"] == "Manager of files");
+    firstEntry["Authors"] = "Unknown";
+    assert(firstEntry["Authors"] == "Unknown");
+    
+    assert(firstEntry.localizedValue("GenericName", "ru") == "Файловый менеджер");
+    firstEntry.setLocalizedValue("GenericName", "ru", "Менеджер файлов");
+    assert(firstEntry.localizedValue("GenericName", "ru") == "Менеджер файлов");
+    firstEntry.setLocalizedValue("Authors", "ru", "Неизвестны");
+    assert(firstEntry.localizedValue("Authors", "ru") == "Неизвестны");
+    
     firstEntry.removeEntry("GenericName");
     assert(!firstEntry.contains("GenericName"));
     firstEntry["GenericName"] = "File Manager";
     assert(firstEntry["GenericName"] == "File Manager");
     
+    assert(ilf.group("Another Group")["Name"] == "Commander");
+    assert(equal(ilf.group("Another Group").byKeyValue(), [ KeyValueTuple("Name", "Commander"), KeyValueTuple("Comment", "Manage files") ]));
+    
+    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group"]));
+    
+    ilf.removeGroup("Another Group");
+    assert(!ilf.group("Another Group"));
+    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry"]));
+    
+    ilf.addGroup("Another Group");
+    assert(ilf.group("Another Group"));
+    assert(ilf.group("Another Group").byIniLine().empty);
+    assert(ilf.group("Another Group").byKeyValue().empty);
+    
+    ilf.addGroup("Other Group");
+    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group", "Other Group"]));
+    
     const IniLikeFile cilf = ilf;
     static assert(is(typeof(cilf.byGroup())));
+    static assert(is(typeof(cilf.group("First Entry").byKeyValue())));
+    static assert(is(typeof(cilf.group("First Entry").byIniLine())));
+    
+    contents = 
+`[Group]
+GenericName=File manager
+[Group]
+Name=Commander`;
+
+    assertThrown(new IniLikeFile(iniLikeStringReader(contents)));
+    assertNotThrown(new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreGroupDuplicates));
+    
+    contents = 
+`[Group]
+=File manager`;
+
+    assertThrown(new IniLikeFile(iniLikeStringReader(contents)));
+    assertNotThrown(new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreInvalidKeys));
 }

@@ -22,7 +22,7 @@ Ddox:
 
 Unix configuration files don't have any strict standard on format. Still some specifications use the format which I call **ini-like** because it's very similiar to **INI** used in MS Windows with small differences:
 
-1. Comments start with '#', not ';'. So ';' symbol can be presented in values.
+1. Comments start with '#', not ';'. So ';' symbol can be presented in keys.
 2. Comments are always placed on their own line. Key-value can't be mixed with comment on the same line.
 
 ## Localized values lookup. 
