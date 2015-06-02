@@ -663,13 +663,15 @@ public:
      * Range of groups in order how they were defined in file.
      * See_Also: group
      */
-    @nogc @safe auto byGroup() {
-        return _groups[].filter!(g => g !is null).map!(g => g); //to prevent elements be accessible as lvalues
+    @nogc @safe final auto byGroup() const nothrow {
+        return _groups.filter!(f => f !is null);
     }
+    
     ///ditto
-    @nogc @safe auto byGroup() const {
-        return _groups[].filter!(g => g !is null);
+    @nogc @safe final auto byGroup() nothrow {
+        return _groups.filter!(f => f !is null);
     }
+    
     
     /**
      * Save object to the file using .ini-like format.
@@ -743,11 +745,11 @@ public:
     }
     
 protected:
-    @nogc @trusted auto firstComments() const nothrow {
+    @nogc @trusted final auto firstComments() const nothrow {
         return _firstComments;
     }
     
-    @trusted void addFirstComment(string line) nothrow {
+    @trusted final void addFirstComment(string line) nothrow {
         _firstComments ~= line;
     }
     

@@ -2,6 +2,8 @@
 
 Inilike is D library for parsing **.ini**-like files used in Unix systems in various places.
 
+[![Build Status](https://travis-ci.org/MyLittleRobo/inilike.svg?branch=master)](https://travis-ci.org/MyLittleRobo/inilike)
+
 Note: the original purpose of this library is to serve as dependency for my other projects, e.g. [desktopfile](https://github.com/MyLittleRobo/desktopfile). It may be not suitable to save configuration files using this library. You have been warned.
 
 ## Generating documentation
