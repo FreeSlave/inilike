@@ -2,6 +2,8 @@
  * Reading and writing ini-like files, used in Unix systems.
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
+ * Copyright:
+ *  Roman Chistokhodov, 2015
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -31,22 +33,17 @@ private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "e
 private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 
 /** Retrieve current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
- * Returns: locale in posix form or empty string if could not determine locale.
- * Note: currently this function caches its result.
+ * Returns: locale in posix form or an empty string if could not determine locale.
+ * Note: this function does not cache its results.
  */
 @safe string currentLocale() nothrow
 {
-    static string cache;
-    if (cache is null) {
-        try {
-            cache = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
-        }
-        catch(Exception e) {
-            
-        }
-        if (cache is null) {
-            cache = "";
-        }
+    string cache;
+    try {
+        cache = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
+    }
+    catch(Exception e) {
+        
     }
     return cache;
 }
@@ -361,15 +358,10 @@ public:
     
     /**
      * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
-     * If locale is null it calls currentLocale to get the locale.
      * Returns: the localized value associated with key and locale, or defaultValue if group does not contain item with this key.
      * See_Also: currentLocale
      */
-    @safe string localizedValue(string key, string locale = null, string defaultValue = null) const nothrow {
-        if (locale is null) {
-            locale = currentLocale();
-        }
-        
+    @safe string localizedValue(string key, string locale, string defaultValue = null) const nothrow {
         //Any ideas how to get rid of this boilerplate and make less allocations?
         auto t = parseLocaleName(locale);
         auto lang = t.lang;
@@ -480,7 +472,7 @@ private:
  * Reads range of strings into the range of IniLikeLines.
  * See_Also: iniLikeFileReader, iniLikeStringReader
  */
-@trusted auto iniLikeRangeReader(Range)(Range byLine) if(is(ElementType!Range == string))
+@trusted auto iniLikeRangeReader(Range)(Range byLine) if(is(ElementType!Range : string))
 {
     return byLine.map!(function(string line) {
         line = strip(line);
@@ -558,7 +550,7 @@ public:
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
-    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range == IniLikeLine))
+    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range : IniLikeLine))
     {
         size_t lineNumber = 0;
         IniLikeGroup currentGroup;
