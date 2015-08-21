@@ -58,6 +58,15 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
     return lang ~ (country.length ? "_"~country : "") ~ (encoding.length ? "."~encoding : "") ~ (modifier.length ? "@"~modifier : "");
 }
 
+///
+unittest
+{
+    assert(makeLocaleName("ru", "RU") == "ru_RU");
+    assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
+    assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
+    assert(makeLocaleName("ru", null, null, "mod") == "ru@mod");
+}
+
 /**
  * Parse locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
  * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
@@ -79,13 +88,17 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
     return LocaleTuple(lang, country, encoding, modifier);
 }
 
+///
+unittest 
+{
+    assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
+    assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
+    assert(parseLocaleName("ru_RU") == tuple("ru", "RU", string.init, string.init));
+}
+
 /**
  * Construct localized key name from key and locale.
  * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
- * Example:
-----------
-assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
-----------
  * See_Also: separateFromLocale
  */
 @safe string localizedKey(string key, string locale) pure nothrow
@@ -97,16 +110,25 @@ assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
     return key ~ "[" ~ locale ~ "]";
 }
 
+///
+unittest 
+{
+    assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
+    assert(localizedKey("Name", "ru_RU.UTF-8") == "Name[ru_RU]");
+}
+
 /**
  * ditto, but constructs locale name from arguments.
- * Example:
-----------
-assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
-----------
  */
 @safe string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow
 {
     return key ~ "[" ~ makeLocaleName(lang, country, null, modifier) ~ "]";
+}
+
+///
+unittest 
+{
+    assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
 }
 
 /** 
@@ -125,47 +147,61 @@ assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
     return tuple(key, string.init);
 }
 
+///
+unittest 
+{
+    assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
+    assert(separateFromLocale("Name") == tuple("Name", string.init));
+}
+
 /**
  * Tells whether the entry value presents true
- * Example:
------------
-assert(isTrue("true"));
-assert(isTrue("1"));
-assert(!isTrue("not boolean"));
------------
  */
 @nogc @safe bool isTrue(string value) pure nothrow {
     return (value == "true" || value == "1");
 }
 
+///
+unittest 
+{
+    assert(isTrue("true"));
+    assert(isTrue("1"));
+    assert(!isTrue("not boolean"));
+}
+
 /**
  * Tells whether the entry value presents false
- * Example:
-----------
-assert(isFalse("false"));
-assert(isFalse("0"));
-assert(!isFalse("not boolean"));
-----------
  */
 @nogc @safe bool isFalse(string value) pure nothrow {
     return (value == "false" || value == "0");
 }
 
+///
+unittest 
+{
+    assert(isFalse("false"));
+    assert(isFalse("0"));
+    assert(!isFalse("not boolean"));
+}
+
 /**
  * Check if the entry value can be interpreted as boolean value.
- * Example:
----------
-assert(isBoolean("true"));
-assert(isBoolean("1"));
-assert(isBoolean("false"));
-assert(isBoolean("0"));
-assert(!isBoolean("not boolean"));
----------
  * See_Also: isTrue, isFalse
  */
 @nogc @safe bool isBoolean(string value) pure nothrow {
     return isTrue(value) || isFalse(value);
 }
+
+///
+unittest 
+{
+    assert(isBoolean("true"));
+    assert(isBoolean("1"));
+    assert(isBoolean("false"));
+    assert(isBoolean("0"));
+    assert(!isBoolean("not boolean"));
+}
+
 /**
  * Escapes string by replacing special symbols with escaped sequences. 
  * These symbols are: '\\' (backslash), '\n' (newline), '\r' (carriage return) and '\t' (tab).
@@ -173,14 +209,16 @@ assert(!isBoolean("not boolean"));
  *  Currently the library stores values as they were loaded from file, i.e. escaped. 
  *  To keep things consistent you should take care about escaping the value before inserting. The library will not do it for you.
  * Returns: Escaped string.
- * Example:
-----
-assert("\\next\nline".escapeValue() == `\\next\nline`); // notice how the string on the right is raw.
-----
  * See_Also: unescapeValue
  */
 @trusted string escapeValue(string value) nothrow pure {
     return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
+}
+
+///
+unittest 
+{
+    assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`); // notice how the string on the right is raw.
 }
 
 @trusted string doUnescape(string value, in Tuple!(char, char)[] pairs) nothrow pure {
@@ -207,10 +245,6 @@ assert("\\next\nline".escapeValue() == `\\next\nline`); // notice how the string
 /**
  * Unescapes string. You should unescape values returned by library before displaying until you want keep them as is (e.g., to allow user to edit values in escaped form).
  * Returns: Unescaped string.
- * Example:
------
-assert(`\\next\nline`.unescapeValue() == "\\next\nline"); // notice how the string on the left is raw.
-----
  * See_Also: escapeValue
  */
 @trusted string unescapeValue(string value) nothrow pure
@@ -223,6 +257,12 @@ assert(`\\next\nline`.unescapeValue() == "\\next\nline"); // notice how the stri
        tuple('\\', '\\')
     ];
     return doUnescape(value, pairs);
+}
+
+///
+unittest 
+{
+    assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top"); // notice how the string on the left is raw.
 }
 
 /**
@@ -500,7 +540,11 @@ private:
  */
 @trusted auto iniLikeFileReader(string fileName)
 {
-    return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
+    static if( __VERSION__ < 2067 ) {
+        return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
+    } else {
+        return iniLikeRangeReader(File(fileName, "r").byLineCopy());
+    }
 }
 
 /**
@@ -754,22 +798,6 @@ private:
 
 unittest
 {
-    //Test locale-related functions
-    assert(makeLocaleName("ru", "RU") == "ru_RU");
-    assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
-    assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
-    assert(makeLocaleName("ru", null, null, "mod") == "ru@mod");
-    
-    assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
-    assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
-    assert(parseLocaleName("ru_RU") == tuple("ru", "RU", string.init, string.init));
-    
-    assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
-    assert(localizedKey("Name", "ru_RU.UTF-8") == "Name[ru_RU]");
-    assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
-    
-    assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
-    assert(separateFromLocale("Name") == tuple("Name", string.init));
     
     //Test locale matching lookup
     auto lilf = new IniLikeFile;
@@ -788,25 +816,6 @@ unittest
     assert(group.localizedValue("Name", "ru") == "Программист");
     assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
     assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
-    
-    //Test escaping and unescaping
-    assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`);
-    assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top");
-    
-    //Test key types functions
-    assert(isTrue("true"));
-    assert(isTrue("1"));
-    assert(!isTrue("not boolean"));
-    
-    assert(isFalse("false"));
-    assert(isFalse("0"));
-    assert(!isFalse("not boolean"));
-    
-    assert(isBoolean("true"));
-    assert(isBoolean("1"));
-    assert(isBoolean("false"));
-    assert(isBoolean("0"));
-    assert(!isBoolean("not boolean"));
     
     //Test IniLikeFile
     string contents = 
