@@ -12,3 +12,4 @@ bin/
 lib/
 docs/
 dub.selections.json
+*.lst

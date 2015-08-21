@@ -48,6 +48,17 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
     return cache;
 }
 
+///
+unittest 
+{
+    environment["LANG"] = "ru_RU";
+    assert(currentLocale() == "ru_RU");
+    environment["LC_ALL"] = "de_DE";
+    assert(currentLocale() == "de_DE");
+    environment["LC_CTYPE"] = "fr_BE";
+    assert(currentLocale() == "fr_BE");
+}
+
 /**
  * Make locale name based on language, country, encoding and modifier.
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
@@ -437,6 +448,29 @@ public:
         return value(key, defaultValue);
     }
     
+    ///
+    unittest 
+    {
+        auto lilf = new IniLikeFile;
+        lilf.addGroup("Entry");
+        auto group = lilf.group("Entry");
+        assert(group.name == "Entry"); 
+        group["Name"] = "Programmer";
+        group["Name[ru_RU]"] = "Разработчик";
+        group["Name[ru@jargon]"] = "Кодер";
+        group["Name[ru]"] = "Программист";
+        group["Name[de_DE@dialect]"] = "Programmierer"; //just example
+        group["GenericName"] = "Program";
+        group["GenericName[ru]"] = "Программа";
+        assert(group["Name"] == "Programmer");
+        assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
+        assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
+        assert(group.localizedValue("Name", "ru") == "Программист");
+        assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
+        assert(group.localizedValue("Name", "de_DE@dialect") == "Programmierer");
+        assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
+    }
+    
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
      */
@@ -567,7 +601,7 @@ public:
     {
         noOptions = 0,              /// Read all groups and skip comments and empty lines.
         firstGroupOnly = 1,         /// Ignore other groups than the first one.
-        preserveComments = 2,       /// Preserve comments and empty lines. Use this when you want to preserve them across writing.
+        preserveComments = 2,       /// Preserve comments and empty lines. Use this when you want to keep them across writing.
         ignoreGroupDuplicates = 4,  /// Ignore group duplicates. The first found will be used.
         ignoreInvalidKeys = 8       /// Skip invalid keys during parsing.
     }
@@ -619,16 +653,16 @@ public:
                     break;
                     case IniLikeLine.Type.GroupStart:
                     {
+                        if (currentGroup !is null && (options & ReadOptions.firstGroupOnly)) {
+                            break;
+                        }
+                        
                         if ((options & ReadOptions.ignoreGroupDuplicates) && group(line.groupName)) {
                             ignoreKeyValues = true;
                             continue;
                         }
                         ignoreKeyValues = false;
                         currentGroup = addGroup(line.groupName);
-                        
-                        if (options & ReadOptions.firstGroupOnly) {
-                            break;
-                        }
                     }
                     break;
                     case IniLikeLine.Type.KeyValue:
@@ -796,28 +830,9 @@ private:
     string[] _firstComments;
 }
 
+///
 unittest
 {
-    
-    //Test locale matching lookup
-    auto lilf = new IniLikeFile;
-    lilf.addGroup("Entry");
-    auto group = lilf.group("Entry");
-    assert(group.name == "Entry"); 
-    group["Name"] = "Programmer";
-    group["Name[ru_RU]"] = "Разработчик";
-    group["Name[ru@jargon]"] = "Кодер";
-    group["Name[ru]"] = "Программист";
-    group["GenericName"] = "Program";
-    group["GenericName[ru]"] = "Программа";
-    assert(group["Name"] == "Programmer");
-    assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
-    assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
-    assert(group.localizedValue("Name", "ru") == "Программист");
-    assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
-    assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
-    
-    //Test IniLikeFile
     string contents = 
 `# The first comment
 [First Entry]
@@ -830,7 +845,8 @@ Name=Commander
 Comment=Manage files
 # The last comment`;
 
-    auto ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.preserveComments);
+    auto ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.preserveComments, "contents.ini");
+    assert(ilf.fileName() == "contents.ini");
     assert(ilf.group("First Entry"));
     assert(ilf.group("Another Group"));
     assert(ilf.saveToString() == contents);
@@ -876,6 +892,16 @@ Comment=Manage files
     static assert(is(typeof(cilf.byGroup())));
     static assert(is(typeof(cilf.group("First Entry").byKeyValue())));
     static assert(is(typeof(cilf.group("First Entry").byIniLine())));
+    
+    contents = 
+`[First]
+Key=Value
+[Second]
+Key=Value`;
+    ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.firstGroupOnly);
+    assert(ilf.group("First") !is null);
+    assert(ilf.group("Second") is null);
+    assert(ilf.group("First")["Key"] == "Value");
     
     contents = 
 `[Group]
