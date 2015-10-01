@@ -588,7 +588,11 @@ private:
  */
 @trusted auto iniLikeStringReader(string contents)
 {
-    return iniLikeRangeReader(contents.lineSplitter());
+    static if( __VERSION__ < 2067 ) {
+        return iniLikeRangeReader(contents.splitLines());
+    } else {
+        return iniLikeRangeReader(contents.lineSplitter());
+    }
 }
 
 /**
@@ -856,7 +860,13 @@ Comment=Manage files
     string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
     try {
         assertNotThrown!IniLikeException(ilf.saveToFile(tempFile));
-        assert(equal((cast(string)std.file.read(tempFile)).lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
+        auto fileContents = cast(string)std.file.read(tempFile);
+        static if( __VERSION__ < 2067 ) {
+            assert(equal(fileContents.splitLines, contents.splitLines), "Contents should be preserved as is");
+        } else {
+            assert(equal(fileContents.lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
+        }
+        
         IniLikeFile filf; 
         assertNotThrown!IniLikeException(filf = new IniLikeFile(tempFile, IniLikeFile.ReadOptions.preserveComments));
         assert(filf.fileName() == tempFile);
