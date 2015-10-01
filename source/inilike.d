@@ -588,7 +588,7 @@ private:
  */
 @trusted auto iniLikeStringReader(string contents)
 {
-    return iniLikeRangeReader(contents.splitLines());
+    return iniLikeRangeReader(contents.lineSplitter());
 }
 
 /**
@@ -853,6 +853,18 @@ Comment=Manage files
     assert(ilf.group("Another Group"));
     assert(ilf.saveToString() == contents);
     
+    string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
+    try {
+        assertNotThrown!IniLikeException(ilf.saveToFile(tempFile));
+        assert(equal((cast(string)std.file.read(tempFile)).lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
+        IniLikeFile filf; 
+        assertNotThrown!IniLikeException(filf = new IniLikeFile(tempFile, IniLikeFile.ReadOptions.preserveComments));
+        assert(filf.fileName() == tempFile);
+        remove(tempFile);
+    } catch(Exception e) {
+        //probably some environment issue unrelated to unittest itself, e.g. could not write to file.
+    }
+    
     auto firstEntry = ilf.group("First Entry");
     
     assert(firstEntry["GenericName"] == "File manager");
@@ -911,13 +923,40 @@ GenericName=File manager
 [Group]
 Name=Commander`;
 
-    assertThrown(new IniLikeFile(iniLikeStringReader(contents)));
+    IniLikeException shouldThrow = null;
+    try {
+        new IniLikeFile(iniLikeStringReader(contents));
+    } catch(IniLikeException e) {
+        shouldThrow = e;
+    }
+    assert(shouldThrow !is null, "Duplicate groups should throw");
+    assert(shouldThrow.lineNumber == 3);
     assertNotThrown(new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreGroupDuplicates));
     
     contents = 
 `[Group]
 =File manager`;
 
-    assertThrown(new IniLikeFile(iniLikeStringReader(contents)));
+    try {
+        new IniLikeFile(iniLikeStringReader(contents));
+    } catch(IniLikeException e) {
+        shouldThrow = e;
+    }
+    assert(shouldThrow !is null, "Invalid key should throw");
+    assert(shouldThrow.lineNumber == 2);
     assertNotThrown(new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreInvalidKeys));
+    
+    contents = 
+`[Group]
+#Comment
+Valid=Key
+NotKeyNotGroupNotComment`;
+
+    try {
+        new IniLikeFile(iniLikeStringReader(contents));
+    } catch(IniLikeException e) {
+        shouldThrow = e;
+    }
+    assert(shouldThrow !is null, "Invalid entry should throw");
+    assert(shouldThrow.lineNumber == 4);
 }
