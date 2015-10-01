@@ -2,7 +2,7 @@
 
 Inilike is D library for parsing **.ini**-like files used in Unix systems in various places (.desktop files, icon themes, mimeapps.list, mimeinfo.cache, trashcan files on freedesktop, etc.)
 
-[![Build Status](https://travis-ci.org/MyLittleRobo/inilike.svg?branch=master)](https://travis-ci.org/MyLittleRobo/inilike)
+[![Build Status](https://travis-ci.org/MyLittleRobo/inilike.svg?branch=master)](https://travis-ci.org/MyLittleRobo/inilike) [![Coverage Status](https://coveralls.io/repos/MyLittleRobo/inilike/badge.svg?branch=master&service=github)](https://coveralls.io/github/MyLittleRobo/inilike?branch=master)
 
 Note: the original purpose of this library is to serve as dependency for my other projects, e.g. [desktopfile](https://github.com/MyLittleRobo/desktopfile) and [icontheme](https://github.com/MyLittleRobo/icontheme). It may be not suitable to save configuration files using this library. You have been warned.
 
