@@ -1,4 +1,8 @@
 language: d
+
+install:
+    - wget -q -O - "http://bit.ly/Doveralls" | bash
+
 matrix:
     allow_failures:
         - d: gdc-4.8.2
@@ -12,3 +16,7 @@ matrix:
         - d: gdc-4.8.2
         - d: ldc-0.14.0
 
+script:
+    - dub test --compiler=${DC}
+    - dub test -b unittest-cov
+    - ./doveralls

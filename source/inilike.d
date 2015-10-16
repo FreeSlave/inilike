@@ -612,7 +612,7 @@ public:
         bool ignoreKeyValues;
         
         try {
-            foreach(line; byLine)
+            loop: foreach(line; byLine)
             {
                 lineNumber++;
                 final switch(line.type)
@@ -631,7 +631,7 @@ public:
                     case IniLikeLine.Type.GroupStart:
                     {
                         if (currentGroup !is null && (options & ReadOptions.firstGroupOnly)) {
-                            break;
+                            break loop;
                         }
                         
                         if ((options & ReadOptions.ignoreGroupDuplicates) && group(line.groupName)) {
@@ -661,7 +661,7 @@ public:
                             if (options & ReadOptions.ignoreKeyDuplicates) {
                                 continue;
                             } else {
-                                //throw new Exception("key duplicate");
+                                throw new Exception("key duplicate");
                             }
                         } else {
                             currentGroup[line.key] = line.value;
@@ -744,7 +744,7 @@ public:
      */
     @trusted void saveToFile(string fileName) const {
         auto f = File(fileName, "w");
-        void dg(string line) {
+        void dg(in string line) {
             f.writeln(line);
         }
         save(&dg);
@@ -757,36 +757,27 @@ public:
      */
     @safe string saveToString() const {
         auto a = appender!(string[])();
-        void dg(string line) {
-            a.put(line);
-        }
-        save(&dg);
+        save(a);
         return a.data.join("\n");
     }
-    
-    /**
-     * Alias for saving delegate.
-     * See_Also: save
-     */
-    alias SaveDelegate = void delegate(string);
     
     /**
      * Use delegate to retrieve strings line by line. 
      * Those strings can be written to the file or be showed in text area.
      * Note: returned strings don't have trailing newline character.
      */
-    @trusted void save(SaveDelegate sink) const {
+    @trusted const void save(OutRange)(OutRange sink) if (isOutputRange!(OutRange, string)) {
         foreach(line; firstComments()) {
-            sink(line);
+            put(sink, line);
         }
         
         foreach(group; byGroup()) {
-            sink("[" ~ group.name ~ "]");
+            put(sink, "[" ~ group.name ~ "]");
             foreach(line; group.byIniLine()) {
                 if (line.type == IniLikeLine.Type.Comment) {
-                    sink(line.comment);
+                    put(sink, line.comment);
                 } else if (line.type == IniLikeLine.Type.KeyValue) {
-                    sink(line.key ~ "=" ~ line.value);
+                    put(sink, line.key ~ "=" ~ line.value);
                 }
             }
         }
@@ -804,7 +795,7 @@ public:
     * Tell whether the string is valid key. 
     * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html Basic format of the file)
     */
-    static @nogc @safe bool isValidKey(string key) pure nothrow {
+    @nogc @safe static bool isValidKey(string key) pure nothrow {
         @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
         }
@@ -942,7 +933,7 @@ Key=Value`;
 `[Group]
 GenericName=File manager
 [Group]
-Name=Commander`;
+GenericName=Commander`;
 
     IniLikeException shouldThrow = null;
     try {
@@ -952,11 +943,30 @@ Name=Commander`;
     }
     assert(shouldThrow !is null, "Duplicate groups should throw");
     assert(shouldThrow.lineNumber == 3);
-    assertNotThrown(new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreGroupDuplicates));
+    
+    ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreGroupDuplicates);
+    assert(ilf.group("Group").value("GenericName") == "File manager");
     
     contents = 
 `[Group]
-=File manager`;
+Key=Value1
+Key=Value2`;
+
+    try {
+        new IniLikeFile(iniLikeStringReader(contents));
+    } catch(IniLikeException e) {
+        shouldThrow = e;
+    }
+    
+    assert(shouldThrow !is null, "Duplicate key should throw");
+    assert(shouldThrow.lineNumber == 3);
+    
+    ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreKeyDuplicates);
+    assert(ilf.group("Group").value("Key") == "Value1");
+    
+    contents = 
+`[Group]
+$#=File manager`;
 
     try {
         new IniLikeFile(iniLikeStringReader(contents));
@@ -966,6 +976,18 @@ Name=Commander`;
     assert(shouldThrow !is null, "Invalid key should throw");
     assert(shouldThrow.lineNumber == 2);
     assertNotThrown(new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreInvalidKeys));
+    
+    contents =
+`[Group]
+Key=Value
+=File manager`;
+    try {
+        new IniLikeFile(iniLikeStringReader(contents));
+    } catch(IniLikeException e) {
+        shouldThrow = e;
+    }
+    assert(shouldThrow !is null, "Empty key should throw");
+    assert(shouldThrow.lineNumber == 3);
     
     contents = 
 `[Group]
