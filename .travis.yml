@@ -2,6 +2,7 @@ language: d
 
 install:
     - wget -q -O - "http://bit.ly/Doveralls" | bash
+    - chmod +x doveralls
 
 matrix:
     allow_failures:
