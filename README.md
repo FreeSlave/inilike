@@ -1,6 +1,6 @@
 # Inilike
 
-Inilike is D library for parsing **.ini**-like files used in Unix systems in various places (.desktop files, icon themes, mimeapps.list, mimeinfo.cache, trashcan files on freedesktop, etc.)
+Inilike is D library for parsing **.ini**-like files used in Freedesktop systems in various places (.desktop files, icon themes, mimeapps.list, mimeinfo.cache, trashcan files on freedesktop, etc.)
 
 [![Build Status](https://travis-ci.org/MyLittleRobo/inilike.svg?branch=master)](https://travis-ci.org/MyLittleRobo/inilike) [![Coverage Status](https://coveralls.io/repos/MyLittleRobo/inilike/badge.svg?branch=master&service=github)](https://coveralls.io/github/MyLittleRobo/inilike?branch=master)
 
@@ -22,10 +22,11 @@ Ddox:
 
 ## Format
 
-Unix configuration files don't have any strict standard on format. Still some specifications use the format which I call **ini-like** because it's very similiar to **INI** used in MS Windows with small differences:
+Freedesktop specifications use the format which I call **ini-like** because it's very similiar to **INI** used in MS Windows with small differences:
 
 1. Comments start with '#', not ';'.
-2. Comments are always placed on their own line. Key-value can't be mixed with comment on the same line.
+2. Each comment is always placed on its own line. Key-value can't be mixed with a comment on the same line.
+3. Only the characters A-Za-z0-9- may be used in key names.
 
 ## Localized values lookup. 
 

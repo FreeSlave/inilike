@@ -1,6 +1,6 @@
 {
     "name": "inilike",
-    "description": "Parsing .ini-like files used in Unix systems",
+    "description": "Parsing .ini-like files used in Freedesktop systems",
     "license" : "BSL-1.0",
     "copyright": "Copyright © 2015, Roman Chistokhodov",
     "authors": ["Roman Chistokhodov"],

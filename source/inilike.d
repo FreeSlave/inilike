@@ -1,5 +1,5 @@
 /**
- * Reading and writing ini-like files, used in Unix systems.
+ * Reading and writing ini-like files, used in Freedesktop systems.
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
  * Copyright:
@@ -15,10 +15,7 @@ module inilike;
 private {
     import std.algorithm;
     import std.array;
-    import std.conv;
     import std.exception;
-    import std.file;
-    import std.path;
     import std.range;
     import std.stdio;
     import std.string;
@@ -305,9 +302,9 @@ private:
 }
 
 /**
- * This class represents the group (section) in the .init like file. 
+ * This class represents the group (section) in the ini-like file. 
  * You can create and use instances of this class only in the context of $(B IniLikeFile) or its derivatives.
- * Note: keys are case-sensitive.
+ * Note: Keys are case-sensitive.
  */
 final class IniLikeGroup
 {
@@ -321,8 +318,8 @@ private:
 public:
     
     /**
-     * Returns: the value associated with the key
-     * Note: it's an error to access nonexistent value
+     * Returns: The value associated with the key
+     * Note: It's an error to access nonexistent value
      * See_Also: value
      */
     @nogc @safe string opIndex(string key) const nothrow {
@@ -334,7 +331,7 @@ public:
     
     /**
      * Insert new value or replaces the old one if value associated with key already exists.
-     * Returns: inserted/updated value
+     * Returns: Inserted/updated value
      * Throws: $(B Exception) if key is not valid
      */
     @safe string opIndexAssign(string value, string key) {
@@ -366,7 +363,7 @@ public:
     
     /**
      * Get value by key.
-     * Returns: the value associated with the key, or defaultValue if group does not contain item with this key.
+     * Returns: The value associated with the key, or defaultValue if group does not contain such item.
      */
     @nogc @safe string value(string key, string defaultValue = null) const nothrow {
         auto pick = key in _indices;
@@ -381,8 +378,7 @@ public:
     
     /**
      * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
-     * Returns: the localized value associated with key and locale, or defaultValue if group does not contain item with this key.
-     * See_Also: currentLocale
+     * Returns: The localized value associated with key and locale, or defaultValue if group does not contain item with this key.
      */
     @safe string localizedValue(string key, string locale, string defaultValue = null) const nothrow {
         //Any ideas how to get rid of this boilerplate and make less allocations?
@@ -462,7 +458,7 @@ public:
     
     /**
      * Iterate by Key-Value pairs.
-     * Returns: range of Tuple!(string, "key", string, "value")
+     * Returns: Range of Tuple!(string, "key", string, "value")
      */
     @nogc @safe auto byKeyValue() const nothrow {
         return _values.filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => KeyValueTuple(v.key, v.value));
@@ -470,15 +466,15 @@ public:
     
     /**
      * Get name of this group.
-     * Returns: the name of this group.
+     * Returns: The name of this group.
      */
     @nogc @safe string name() const nothrow {
         return _name;
     }
     
     /**
-     * Returns: the range of $(B IniLikeLine)s included in this group.
-     * Note: this does not include Group line itself.
+     * Returns: Range of $(B IniLikeLine)s included in this group.
+     * Note: This does not include Group line itself.
      */
     @system auto byIniLine() const {
         return _values.filter!(v => v.type != IniLikeLine.Type.None);
@@ -515,7 +511,7 @@ private:
 }
 
 /**
- * Reads range of strings into the range of IniLikeLines.
+ * Reads range of strings into the range of $(B IniLikeLine)s.
  * See_Also: iniLikeFileReader, iniLikeStringReader
  */
 @trusted auto iniLikeRangeReader(Range)(Range byLine) if(is(ElementType!Range : string))
@@ -541,8 +537,9 @@ private:
 }
 
 /**
- * ditto, convenient function for reading from the file.
+ * Convenient function for reading from the file.
  * Throws: $(B ErrnoException) if file could not be opened.
+ * See_Also: iniLikeRangeReader
  */
 @trusted auto iniLikeFileReader(string fileName)
 {
@@ -554,7 +551,9 @@ private:
 }
 
 /**
- * ditto, convenient function for reading from string.
+ * Convenient function for reading from string.
+ * Note: on frontends < 2.067 it uses splitLines thereby allocating strings.
+ * See_Also: iniLikeRangeReader
  */
 @trusted auto iniLikeStringReader(string contents)
 {
@@ -697,7 +696,7 @@ public:
     
     /**
      * Create new group using groupName.
-     * Returns: newly created instance of IniLikeGroup.
+     * Returns: Newly created instance of IniLikeGroup.
      * Throws: Exception if group with such name already exists or groupName is empty.
      * See_Also: removeGroup, group
      */
@@ -752,7 +751,7 @@ public:
     
     /**
      * Save object to string using .ini like format.
-     * Returns: string representing the contents of file.
+     * Returns: A string that represents the contents of file.
      * See_Also: saveToFile, save
      */
     @safe string saveToString() const {
@@ -762,7 +761,7 @@ public:
     }
     
     /**
-     * Use delegate to retrieve strings line by line. 
+     * Use Output range or delegate to retrieve strings line by line. 
      * Those strings can be written to the file or be showed in text area.
      * Note: returned strings don't have trailing newline character.
      */
@@ -785,7 +784,7 @@ public:
     
     /**
      * File path where the object was loaded from.
-     * Returns: file name as was specified on the object creation.
+     * Returns: File name as was specified on the object creation.
      */
     @nogc @safe string fileName() nothrow const {
         return _fileName;
@@ -838,6 +837,9 @@ private:
 ///
 unittest
 {
+    import std.file;
+    import std.path;
+    
     string contents = 
 `# The first comment
 [First Entry]
