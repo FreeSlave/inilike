@@ -19,7 +19,6 @@ private {
     import std.exception;
     import std.file;
     import std.path;
-    import std.process;
     import std.range;
     import std.stdio;
     import std.string;
@@ -31,35 +30,6 @@ private {
 
 private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier");
 private alias KeyValueTuple = Tuple!(string, "key", string, "value");
-
-/** Retrieve current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
- * Returns: locale in posix form or an empty string if could not determine locale.
- * Note: this function does not cache its results.
- */
-@safe string currentLocale() nothrow
-{
-    string cache;
-    try {
-        cache = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
-    }
-    catch(Exception e) {
-        
-    }
-    return cache;
-}
-
-///
-unittest 
-{
-    if (environment.get("CI") != "true") { //for some reason it can't set environment variables in Travis CI
-        environment["LANG"] = "ru_RU";
-        assert(currentLocale() == "ru_RU");
-        environment["LC_ALL"] = "de_DE";
-        assert(currentLocale() == "de_DE");
-        environment["LC_CTYPE"] = "fr_BE";
-        assert(currentLocale() == "fr_BE");
-    }
-}
 
 /**
  * Make locale name based on language, country, encoding and modifier.
@@ -368,7 +338,7 @@ public:
      * Throws: $(B Exception) if key is not valid
      */
     @safe string opIndexAssign(string value, string key) {
-        enforce(_parent.isValidKey(separateFromLocale(key)[0]), "key is invalid");
+        enforce(IniLikeFile.isValidKey(separateFromLocale(key)[0]), "key is invalid");
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
@@ -605,11 +575,12 @@ public:
     ///Flags to manage .ini like file reading
     enum ReadOptions
     {
-        noOptions = 0,              /// Read all groups and skip comments and empty lines.
+        noOptions = 0,              /// Read all groups, skip comments and empty lines, stop on any error.
         firstGroupOnly = 1,         /// Ignore other groups than the first one.
         preserveComments = 2,       /// Preserve comments and empty lines. Use this when you want to keep them across writing.
         ignoreGroupDuplicates = 4,  /// Ignore group duplicates. The first found will be used.
-        ignoreInvalidKeys = 8       /// Skip invalid keys during parsing.
+        ignoreInvalidKeys = 8,      /// Skip invalid keys during parsing.
+        ignoreKeyDuplicates = 16    /// Ignore key duplicates. The first found will be used.
     }
     
     /**
@@ -673,11 +644,28 @@ public:
                     break;
                     case IniLikeLine.Type.KeyValue:
                     {
-                        if (ignoreKeyValues || ((options & ReadOptions.ignoreInvalidKeys) && !isValidKey(line.key)) ) {
+                        if (ignoreKeyValues) {
                             continue;
                         }
-                        enforce(currentGroup, "met key-value pair before any group");
-                        currentGroup[line.key] = line.value;
+                        enforce(currentGroup !is null, "met key-value pair before any group");
+                        
+                        if (!IniLikeFile.isValidKey(separateFromLocale(line.key)[0])) {
+                            if (options & ReadOptions.ignoreInvalidKeys) {
+                                continue;
+                            } else {
+                                throw new Exception("invalid key");
+                            }
+                        }
+                        
+                        if (currentGroup.contains(line.key)) {
+                            if (options & ReadOptions.ignoreKeyDuplicates) {
+                                continue;
+                            } else {
+                                //throw new Exception("key duplicate");
+                            }
+                        } else {
+                            currentGroup[line.key] = line.value;
+                        }
                     }
                     break;
                     case IniLikeLine.Type.None:
@@ -809,15 +797,35 @@ public:
      * Returns: file name as was specified on the object creation.
      */
     @nogc @safe string fileName() nothrow const {
-        return  _fileName;
+        return _fileName;
     }
     
     /**
-    * Tell whether the string is valid key. For IniLikeFile the valid key is any non-empty string.
-    * Reimplement this function in the derived class to throw exception from IniLikeGroup when key is invalid.
+    * Tell whether the string is valid key. 
+    * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html Basic format of the file)
     */
-    @nogc @safe bool isValidKey(string key) pure nothrow const {
-        return key.length != 0;
+    static @nogc @safe bool isValidKey(string key) pure nothrow {
+        @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
+            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
+        }
+        
+        if (key.empty) {
+            return false;
+        }
+        for (size_t i = 0; i<key.length; ++i) {
+            if (!isValidKeyChar(key[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    ///
+    unittest
+    {
+        assert(IniLikeFile.isValidKey("Generic-Name"));
+        assert(!IniLikeFile.isValidKey("Name$"));
+        assert(!IniLikeFile.isValidKey(""));
     }
     
 protected:
@@ -877,6 +885,9 @@ Comment=Manage files
     
     auto firstEntry = ilf.group("First Entry");
     
+    assert(!firstEntry.contains("NonExistent"));
+    assert(firstEntry.contains("GenericName"));
+    assert(firstEntry.contains("GenericName[ru]"));
     assert(firstEntry["GenericName"] == "File manager");
     assert(firstEntry.value("GenericName") == "File manager");
     firstEntry["GenericName"] = "Manager of files";
