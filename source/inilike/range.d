@@ -56,8 +56,13 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
             
             this(Range range)
             {
-                _range = range;
-                nextGroup();
+                _range = range.find!(isGroupHeader);
+                string line;
+                if (!_range.empty) {
+                    line = _range.front;
+                    _range.popFront();
+                }
+                _currentGroup = Group(_range, line);
             }
             
             auto front()
@@ -72,22 +77,15 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
             
             void popFront()
             {
-                nextGroup();
-            }
-        private:
-            void nextGroup()
-            {
                 _range = _range.find!(isGroupHeader);
-                
                 string line;
                 if (!_range.empty) {
                     line = _range.front;
                     _range.popFront();
                 }
-                
                 _currentGroup = Group(_range, line);
             }
-            
+        private:
             Group _currentGroup;
             Range _range;
         }
