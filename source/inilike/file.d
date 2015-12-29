@@ -1,305 +1,50 @@
 /**
- * Reading and writing ini-like files, used in Freedesktop systems.
- * Authors: 
- *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
- * Copyright:
- *  Roman Chistokhodov, 2015
- * License: 
- *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * See_Also: 
- *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification).
+ * Class representation of ini-like file.
  */
 
-module inilike;
+module inilike.file;
 
-private {
-    import std.algorithm;
-    import std.array;
-    import std.exception;
-    import std.range;
-    import std.stdio;
-    import std.string;
-    import std.traits;
-    import std.typecons;
-    
-    static if( __VERSION__ < 2066 ) enum nogc = 1;
-}
+private import std.exception;
 
-private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier");
-private alias KeyValueTuple = Tuple!(string, "key", string, "value");
+import inilike.common;
+import inilike.range;
 
-/**
- * Make locale name based on language, country, encoding and modifier.
- * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
- * See_Also: parseLocaleName
- */
-@safe string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow
-{
-    return lang ~ (country.length ? "_"~country : "") ~ (encoding.length ? "."~encoding : "") ~ (modifier.length ? "@"~modifier : "");
-}
-
-///
-unittest
-{
-    assert(makeLocaleName("ru", "RU") == "ru_RU");
-    assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
-    assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
-    assert(makeLocaleName("ru", null, null, "mod") == "ru@mod");
-}
-
-/**
- * Parse locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
- * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
- * See_Also: makeLocaleName
- */
-@nogc @trusted auto parseLocaleName(string locale) pure nothrow
-{
-    auto modifiderSplit = findSplit(locale, "@");
-    auto modifier = modifiderSplit[2];
-    
-    auto encodongSplit = findSplit(modifiderSplit[0], ".");
-    auto encoding = encodongSplit[2];
-    
-    auto countrySplit = findSplit(encodongSplit[0], "_");
-    auto country = countrySplit[2];
-    
-    auto lang = countrySplit[0];
-    
-    return LocaleTuple(lang, country, encoding, modifier);
-}
-
-///
-unittest 
-{
-    assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
-    assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
-    assert(parseLocaleName("ru_RU") == tuple("ru", "RU", string.init, string.init));
-}
-
-/**
- * Construct localized key name from key and locale.
- * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
- * See_Also: separateFromLocale
- */
-@safe string localizedKey(string key, string locale) pure nothrow
-{
-    auto t = parseLocaleName(locale);
-    if (!t.encoding.empty) {
-        locale = makeLocaleName(t.lang, t.country, null, t.modifier);
-    }
-    return key ~ "[" ~ locale ~ "]";
-}
-
-///
-unittest 
-{
-    assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
-    assert(localizedKey("Name", "ru_RU.UTF-8") == "Name[ru_RU]");
-}
-
-/**
- * ditto, but constructs locale name from arguments.
- */
-@safe string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow
-{
-    return key ~ "[" ~ makeLocaleName(lang, country, null, modifier) ~ "]";
-}
-
-///
-unittest 
-{
-    assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
-}
-
-/** 
- * Separate key name into non-localized key and locale name.
- * If key is not localized returns original key and empty string.
- * Returns: tuple of key and locale name.
- * See_Also: localizedKey
- */
-@nogc @trusted Tuple!(string, string) separateFromLocale(string key) pure nothrow {
-    if (key.endsWith("]")) {
-        auto t = key.findSplit("[");
-        if (t[1].length) {
-            return tuple(t[0], t[2][0..$-1]);
-        }
-    }
-    return tuple(key, string.init);
-}
-
-///
-unittest 
-{
-    assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
-    assert(separateFromLocale("Name") == tuple("Name", string.init));
-}
-
-/**
- * Tells whether the entry value presents true
- */
-@nogc @safe bool isTrue(string value) pure nothrow {
-    return (value == "true" || value == "1");
-}
-
-///
-unittest 
-{
-    assert(isTrue("true"));
-    assert(isTrue("1"));
-    assert(!isTrue("not boolean"));
-}
-
-/**
- * Tells whether the entry value presents false
- */
-@nogc @safe bool isFalse(string value) pure nothrow {
-    return (value == "false" || value == "0");
-}
-
-///
-unittest 
-{
-    assert(isFalse("false"));
-    assert(isFalse("0"));
-    assert(!isFalse("not boolean"));
-}
-
-/**
- * Check if the entry value can be interpreted as boolean value.
- * See_Also: isTrue, isFalse
- */
-@nogc @safe bool isBoolean(string value) pure nothrow {
-    return isTrue(value) || isFalse(value);
-}
-
-///
-unittest 
-{
-    assert(isBoolean("true"));
-    assert(isBoolean("1"));
-    assert(isBoolean("false"));
-    assert(isBoolean("0"));
-    assert(!isBoolean("not boolean"));
-}
-
-/**
- * Escapes string by replacing special symbols with escaped sequences. 
- * These symbols are: '\\' (backslash), '\n' (newline), '\r' (carriage return) and '\t' (tab).
- * Note: 
- *  Currently the library stores values as they were loaded from file, i.e. escaped. 
- *  To keep things consistent you should take care about escaping the value before inserting. The library will not do it for you.
- * Returns: Escaped string.
- * See_Also: unescapeValue
- */
-@trusted string escapeValue(string value) nothrow pure {
-    return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
-}
-
-///
-unittest 
-{
-    assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`); // notice how the string on the right is raw.
-}
-
-@trusted string doUnescape(string value, in Tuple!(char, char)[] pairs) nothrow pure {
-    auto toReturn = appender!string();
-    
-    for (size_t i = 0; i < value.length; i++) {
-        if (value[i] == '\\') {
-            if (i < value.length - 1) {
-                char c = value[i+1];
-                auto t = pairs.find!"a[0] == b[0]"(tuple(c,c));
-                if (!t.empty) {
-                    toReturn.put(t.front[1]);
-                    i++;
-                    continue;
-                }
-            }
-        }
-        toReturn.put(value[i]);
-    }
-    return toReturn.data;
-}
-
-
-/**
- * Unescapes string. You should unescape values returned by library before displaying until you want keep them as is (e.g., to allow user to edit values in escaped form).
- * Returns: Unescaped string.
- * See_Also: escapeValue
- */
-@trusted string unescapeValue(string value) nothrow pure
-{
-    static immutable Tuple!(char, char)[] pairs = [
-       tuple('s', ' '),
-       tuple('n', '\n'),
-       tuple('r', '\r'),
-       tuple('t', '\t'),
-       tuple('\\', '\\')
-    ];
-    return doUnescape(value, pairs);
-}
-
-///
-unittest 
-{
-    assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top"); // notice how the string on the left is raw.
-}
-
-/**
- * Represents the line from ini-like file.
- * Usually you should not use this struct directly, since it's tightly connected with internal $(B IniLikeFile) implementation.
- */
 struct IniLikeLine
 {
     enum Type
     {
         None = 0,
         Comment = 1,
-        KeyValue = 2,
-        GroupStart = 4
+        KeyValue = 2
     }
     
     @nogc @safe static IniLikeLine fromComment(string comment) nothrow {
         return IniLikeLine(comment, null, Type.Comment);
     }
-    
-    @nogc @safe static IniLikeLine fromGroupName(string groupName) nothrow {
-        return IniLikeLine(groupName, null, Type.GroupStart);
-    }
-    
     @nogc @safe static IniLikeLine fromKeyValue(string key, string value) nothrow {
         return IniLikeLine(key, value, Type.KeyValue);
     }
-    
     @nogc @safe string comment() const nothrow {
         return _type == Type.Comment ? _first : null;
     }
-    
     @nogc @safe string key() const nothrow {
         return _type == Type.KeyValue ? _first : null;
     }
-    
     @nogc @safe string value() const nothrow {
         return _type == Type.KeyValue ? _second : null;
     }
-    
-    @nogc @safe string groupName() const nothrow {
-        return _type == Type.GroupStart ? _first : null;
-    }
-    
     @nogc @safe Type type() const nothrow {
         return _type;
     }
-    
     @nogc @safe void makeNone() nothrow {
         _type = Type.None;
     }
-    
 private:
     string _first;
     string _second;
     Type _type = Type.None;
 }
+
 
 /**
  * This class represents the group (section) in the ini-like file. 
@@ -309,10 +54,8 @@ private:
 final class IniLikeGroup
 {
 private:
-    @nogc @safe this(string name, const IniLikeFile parent) nothrow {
-        assert(parent, "logic error: no parent for IniLikeGroup");
+    @nogc @safe this(string name) nothrow {
         _name = name;
-        _parent = parent;
     }
     
 public:
@@ -335,7 +78,7 @@ public:
      * Throws: $(B Exception) if key is not valid
      */
     @safe string opIndexAssign(string value, string key) {
-        enforce(IniLikeFile.isValidKey(separateFromLocale(key)[0]), "key is invalid");
+        enforce(isValidKey(separateFromLocale(key)[0]), "key is invalid");
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
@@ -488,7 +231,6 @@ private:
     size_t[string] _indices;
     IniLikeLine[] _values;
     string _name;
-    const IniLikeFile _parent;
 }
 
 /**
@@ -511,60 +253,6 @@ private:
 }
 
 /**
- * Reads range of strings into the range of $(B IniLikeLine)s.
- * See_Also: iniLikeFileReader, iniLikeStringReader
- */
-@trusted auto iniLikeRangeReader(Range)(Range byLine) if(is(ElementType!Range : string))
-{
-    return byLine.map!(function(string line) {
-        line = strip(line);
-        if (line.empty || line.startsWith("#")) {
-            return IniLikeLine.fromComment(line);
-        } else if (line.startsWith("[") && line.endsWith("]")) {
-            return IniLikeLine.fromGroupName(line[1..$-1]);
-        } else {
-            auto t = line.findSplit("=");
-            auto key = t[0].stripRight();
-            auto value = t[2].stripLeft();
-            
-            if (t[1].length) {
-                return IniLikeLine.fromKeyValue(key, value);
-            } else {
-                return IniLikeLine();
-            }         
-        }
-    });
-}
-
-/**
- * Convenient function for reading from the file.
- * Throws: $(B ErrnoException) if file could not be opened.
- * See_Also: iniLikeRangeReader
- */
-@trusted auto iniLikeFileReader(string fileName)
-{
-    static if( __VERSION__ < 2067 ) {
-        return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
-    } else {
-        return iniLikeRangeReader(File(fileName, "r").byLineCopy());
-    }
-}
-
-/**
- * Convenient function for reading from string.
- * Note: on frontends < 2.067 it uses splitLines thereby allocating strings.
- * See_Also: iniLikeRangeReader
- */
-@trusted auto iniLikeStringReader(string contents)
-{
-    static if( __VERSION__ < 2067 ) {
-        return iniLikeRangeReader(contents.splitLines());
-    } else {
-        return iniLikeRangeReader(contents.lineSplitter());
-    }
-}
-
-/**
  * Ini-like file.
  * 
  */
@@ -575,7 +263,7 @@ public:
     enum ReadOptions
     {
         noOptions = 0,              /// Read all groups, skip comments and empty lines, stop on any error.
-        firstGroupOnly = 1,         /// Ignore other groups than the first one.
+        //firstGroupOnly = 1,         /// Ignore other groups than the first one.
         preserveComments = 2,       /// Preserve comments and empty lines. Use this when you want to keep them across writing.
         ignoreGroupDuplicates = 4,  /// Ignore group duplicates. The first found will be used.
         ignoreInvalidKeys = 8,      /// Skip invalid keys during parsing.
@@ -604,77 +292,85 @@ public:
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
-    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range : IniLikeLine))
+    @trusted this(IniLikeReader)(IniLikeReader reader, ReadOptions options = ReadOptions.noOptions, string fileName = null)
     {
         size_t lineNumber = 0;
         IniLikeGroup currentGroup;
         bool ignoreKeyValues;
         
+        version(DigitalMars) {
+            static void foo(size_t val) {}
+        }
+        
         try {
-            loop: foreach(line; byLine)
+            foreach(line; reader.byFirstLines)
             {
                 lineNumber++;
-                final switch(line.type)
+                if (line.isComment || line.strip.empty) {
+                    if (options & ReadOptions.preserveComments) {
+                        addFirstComment(line);
+                    }
+                } else {
+                    throw new Exception("Expected comment or empty line before any group");
+                }
+            }
+            
+            foreach(g; reader.byGroup)
+            {
+                lineNumber++;
+                
+                version(DigitalMars) {
+                    foo(lineNumber); //fix dmd codgen bug with -O
+                }
+                
+                ignoreKeyValues = false;
+                
+                if ((options & ReadOptions.ignoreGroupDuplicates) && group(g.name)) {
+                    ignoreKeyValues = true;
+                } else {
+                    currentGroup = addGroup(g.name);
+                }
+                
+                foreach(line; g.byEntry)
                 {
-                    case IniLikeLine.Type.Comment:
-                    {
-                        if (options & ReadOptions.preserveComments) {
-                            if (currentGroup is null) {
-                                addFirstComment(line.comment);
-                            } else {
-                                currentGroup.addComment(line.comment);
-                            }
-                        }
+                    lineNumber++;
+                    
+                    if (ignoreKeyValues) {
+                        continue;
                     }
-                    break;
-                    case IniLikeLine.Type.GroupStart:
-                    {
-                        if (currentGroup !is null && (options & ReadOptions.firstGroupOnly)) {
-                            break loop;
-                        }
+                    
+                    if (line.isComment || line.strip.empty) {
+                        currentGroup.addComment(line);
+                    } else {
+                        auto t = parseKeyValue(line);
                         
-                        if ((options & ReadOptions.ignoreGroupDuplicates) && group(line.groupName)) {
-                            ignoreKeyValues = true;
-                            continue;
-                        }
-                        ignoreKeyValues = false;
-                        currentGroup = addGroup(line.groupName);
-                    }
-                    break;
-                    case IniLikeLine.Type.KeyValue:
-                    {
-                        if (ignoreKeyValues) {
-                            continue;
-                        }
-                        enforce(currentGroup !is null, "met key-value pair before any group");
-                        
-                        if (!IniLikeFile.isValidKey(separateFromLocale(line.key)[0])) {
-                            if (options & ReadOptions.ignoreInvalidKeys) {
-                                continue;
-                            } else {
-                                throw new Exception("invalid key");
+                        if (t[0].length) {
+                            if (!isValidKey(separateFromLocale(t[0])[0])) {
+                                if (options & ReadOptions.ignoreInvalidKeys) {
+                                    continue;
+                                } else {
+                                    throw new Exception("invalid key");
+                                }
                             }
-                        }
-                        
-                        if (currentGroup.contains(line.key)) {
-                            if (options & ReadOptions.ignoreKeyDuplicates) {
-                                continue;
+                            
+                            if (currentGroup.contains(t[0])) {
+                                if (options & ReadOptions.ignoreKeyDuplicates) {
+                                    continue;
+                                } else {
+                                    throw new Exception("key duplicate");
+                                }
                             } else {
-                                throw new Exception("key duplicate");
+                                currentGroup[t[0]] = t[1];
                             }
                         } else {
-                            currentGroup[line.key] = line.value;
+                            throw new Exception("Expected comment, empty line or key value inside group");
                         }
-                    }
-                    break;
-                    case IniLikeLine.Type.None:
-                    {
-                        throw new Exception("not key-value pair, nor group start nor comment");
                     }
                 }
             }
             
             _fileName = fileName;
+            
         }
         catch (Exception e) {
             throw new IniLikeException(e.msg, lineNumber, e.file, e.line, e.next);
@@ -704,7 +400,7 @@ public:
         enforce(groupName.length, "empty group name");
         enforce(group(groupName) is null, "group already exists");
         
-        auto iniLikeGroup = new IniLikeGroup(groupName, this);
+        auto iniLikeGroup = new IniLikeGroup(groupName);
         _groupIndices[groupName] = _groups.length;
         _groups ~= iniLikeGroup;
         
@@ -742,6 +438,8 @@ public:
      * See_Also: saveToString, save
      */
     @trusted void saveToFile(string fileName) const {
+        import std.stdio;
+        
         auto f = File(fileName, "w");
         void dg(in string line) {
             f.writeln(line);
@@ -788,34 +486,6 @@ public:
      */
     @nogc @safe string fileName() nothrow const {
         return _fileName;
-    }
-    
-    /**
-    * Tell whether the string is valid key. 
-    * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html Basic format of the file)
-    */
-    @nogc @safe static bool isValidKey(string key) pure nothrow {
-        @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
-            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
-        }
-        
-        if (key.empty) {
-            return false;
-        }
-        for (size_t i = 0; i<key.length; ++i) {
-            if (!isValidKeyChar(key[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
-    
-    ///
-    unittest
-    {
-        assert(IniLikeFile.isValidKey("Generic-Name"));
-        assert(!IniLikeFile.isValidKey("Name$"));
-        assert(!IniLikeFile.isValidKey(""));
     }
     
 protected:
@@ -922,16 +592,6 @@ Comment=Manage files
     static assert(is(typeof(cilf.group("First Entry").byIniLine())));
     
     contents = 
-`[First]
-Key=Value
-[Second]
-Key=Value`;
-    ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.firstGroupOnly);
-    assert(ilf.group("First") !is null);
-    assert(ilf.group("Second") is null);
-    assert(ilf.group("First")["Key"] == "Value");
-    
-    contents = 
 `[Group]
 GenericName=File manager
 [Group]
@@ -1005,3 +665,4 @@ NotKeyNotGroupNotComment`;
     assert(shouldThrow !is null, "Invalid entry should throw");
     assert(shouldThrow.lineNumber == 4);
 }
+
