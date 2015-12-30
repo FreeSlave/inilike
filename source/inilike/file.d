@@ -1,5 +1,13 @@
 /**
  * Class representation of ini-like file.
+ * Authors: 
+ *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
+ * Copyright:
+ *  Roman Chistokhodov, 2015
+ * License: 
+ *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * See_Also: 
+ *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
 
 module inilike.file;
@@ -344,8 +352,11 @@ public:
                     } else {
                         auto t = parseKeyValue(line);
                         
-                        if (t[0].length) {
-                            if (!isValidKey(separateFromLocale(t[0])[0])) {
+                        string key = t.key.stripRight;
+                        string value = t.value.stripLeft;
+                        
+                        if (key.length) {
+                            if (!isValidKey(separateFromLocale(key)[0])) {
                                 if (options & ReadOptions.ignoreInvalidKeys) {
                                     continue;
                                 } else {
@@ -353,14 +364,14 @@ public:
                                 }
                             }
                             
-                            if (currentGroup.contains(t[0])) {
+                            if (currentGroup.contains(key)) {
                                 if (options & ReadOptions.ignoreKeyDuplicates) {
                                     continue;
                                 } else {
                                     throw new Exception("key duplicate");
                                 }
                             } else {
-                                currentGroup[t[0]] = t[1];
+                                currentGroup[key] = t[1];
                             }
                         } else {
                             throw new Exception("Expected comment, empty line or key value inside group");

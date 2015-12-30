@@ -1,5 +1,13 @@
 /**
  * Common functions for dealing with entries in ini-like file.
+ * Authors: 
+ *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
+ * Copyright:
+ *  Roman Chistokhodov, 2015
+ * License: 
+ *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * See_Also: 
+ *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
 
 module inilike.common;
@@ -17,11 +25,42 @@ package {
     alias KeyValueTuple = Tuple!(string, "key", string, "value");
 }
 
-/**
- * Test whether the entry is comment.
- */
-@nogc @trusted bool isComment(string s) pure nothrow
+private @nogc @trusted auto stripLeftChar(inout(char)[] s) pure nothrow
 {
+    size_t spaceNum = 0;
+    while(spaceNum < s.length) {
+        char c = s[spaceNum];
+        if (c == ' ' || c == '\t') {
+            spaceNum++;
+        } else {
+            break;
+        }
+    }
+    return s[spaceNum..$];
+}
+
+private @nogc @trusted auto stripRightChar(inout(char)[] s) pure nothrow
+{
+    size_t spaceNum = 0;
+    while(spaceNum < s.length) {
+        char c = s[$-1-spaceNum];
+        if (c == ' ' || c == '\t') {
+            spaceNum++;
+        } else {
+            break;
+        }
+    }
+    
+    return s[0..$-spaceNum];
+}
+
+
+/**
+ * Test whether the string s represents a comment.
+ */
+@nogc @trusted bool isComment(const(char)[] s) pure nothrow
+{
+    s = s.stripLeftChar;
     return !s.empty && s[0] == '#';
 }
 
@@ -29,16 +68,18 @@ package {
 unittest
 {
     assert( isComment("# Comment"));
+    assert( isComment("   # Comment"));
     assert(!isComment("Not comment"));
     assert(!isComment(""));
 }
 
 /**
- * Test whether the entry is group header.
+ * Test whether the string s represents a group header.
  * Note: "[]" is not considered as valid group header.
  */
-@nogc @trusted bool isGroupHeader(string s) pure nothrow
+@nogc @trusted bool isGroupHeader(const(char)[] s) pure nothrow
 {
+    s = s.stripRightChar;
     return s.length > 2 && s[0] == '[' && s[$-1] == ']';
 }
 
@@ -46,6 +87,7 @@ unittest
 unittest
 {
     assert( isGroupHeader("[Group]"));
+    assert( isGroupHeader("[Group]    "));
     assert(!isGroupHeader("[]"));
     assert(!isGroupHeader("[Group"));
     assert(!isGroupHeader("Group]"));
@@ -53,11 +95,12 @@ unittest
 
 /**
  * Retrieve group name from header entry.
- * Returns: group name or empty string if the entry is not header.
+ * Returns: group name or empty string if the entry is not group header.
  */
 
 @nogc @trusted string parseGroupHeader(string s) pure nothrow
 {
+    s = s.stripRightChar;
     if (isGroupHeader(s)) {
         return s[1..$-1];
     } else {
@@ -78,11 +121,11 @@ unittest
  * Note: this function does not check whether parsed key is valid key.
  * See_Also: isValidKey
  */
-@nogc @trusted auto parseKeyValue(string s) pure
+@nogc @trusted auto parseKeyValue(string s) pure nothrow
 {
     auto t = s.findSplit("=");
-    auto key = t[0].stripRight;
-    auto value = t[2].stripLeft;
+    auto key = t[0];
+    auto value = t[2];
     
     if (t[0].length && t[1].length) {
         return KeyValueTuple(t[0], t[2]);
@@ -103,7 +146,7 @@ unittest
 * Test whether the string is valid key. 
 * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html Basic format of the file)
 */
-@nogc @safe bool isValidKey(string key) pure nothrow {
+@nogc @safe bool isValidKey(const(char)[] key) pure nothrow {
     @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
     }
@@ -130,7 +173,7 @@ unittest
 /**
  * Test whether the entry value represents true
  */
-@nogc @safe bool isTrue(string value) pure nothrow {
+@nogc @safe bool isTrue(const(char)[] value) pure nothrow {
     return (value == "true" || value == "1");
 }
 
@@ -145,7 +188,7 @@ unittest
 /**
  * Test whether the entry value represents false
  */
-@nogc @safe bool isFalse(string value) pure nothrow {
+@nogc @safe bool isFalse(const(char)[] value) pure nothrow {
     return (value == "false" || value == "0");
 }
 
@@ -161,7 +204,7 @@ unittest
  * Check if the entry value can be interpreted as boolean value.
  * See_Also: isTrue, isFalse
  */
-@nogc @safe bool isBoolean(string value) pure nothrow {
+@nogc @safe bool isBoolean(const(char)[] value) pure nothrow {
     return isTrue(value) || isFalse(value);
 }
 
@@ -174,14 +217,6 @@ unittest
     assert(isBoolean("0"));
     assert(!isBoolean("not boolean"));
 }
-
-// @safe auto chainLocaleName(string lang, string country, string encoding = null, string modifier = null) pure nothrow
-// {
-//     return chain(lang, 
-//                  country.length ? chain("_", country) : chain("", ""), 
-//                  encoding.length ? chain(".", encoding) : chain("", ""), 
-//                  modifier.length ? chain("@", modifier) : chain("", ""));
-// }
 
 /**
  * Make locale name based on language, country, encoding and modifier.

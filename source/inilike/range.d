@@ -1,11 +1,23 @@
 /**
  * Parsing contents of ini-like files via range-based interface.
+ * Authors: 
+ *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
+ * Copyright:
+ *  Roman Chistokhodov, 2015
+ * License: 
+ *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * See_Also: 
+ *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
 
 module inilike.range;
 
 import inilike.common;
 
+
+/**
+ * Object for iterating through ini-like file entries.
+ */
 struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!Range))
 {
     this(Range range)
@@ -98,6 +110,7 @@ private:
 }
 
 /**
+ * Convenient function for creation of IniLikeReader instance.
  * Params:
  *  range = input range of strings (strings must be without trailing new line characters)
  * Returns: IniLikeReader for given range.
@@ -109,8 +122,9 @@ auto iniLikeRangeReader(Range)(Range range)
 }
 
 /**
- * Convenient function for reading from the file.
+ * Convenient function for reading ini-like contents from the file.
  * Throws: $(B ErrnoException) if file could not be opened.
+ * Note: This function uses byLineCopy internally. Fallbacks to byLine on older compilers.
  * See_Also: iniLikeRangeReader, iniLikeStringReader
  */
 @trusted auto iniLikeFileReader(string fileName)
@@ -124,7 +138,7 @@ auto iniLikeRangeReader(Range)(Range range)
 }
 
 /**
- * Convenient function for reading from string.
+ * Convenient function for reading ini-like contents from string.
  * Note: on frontends < 2.067 it uses splitLines thereby allocates strings.
  * See_Also: iniLikeRangeReader, iniLikeFileReader
  */
@@ -163,6 +177,7 @@ KeyValue6`;
     auto byGroup = r.byGroup;
     
     assert(byGroup.front.name == "First group");
+    assert(byGroup.front.originalLine == "[First group]");
     //assert(byGroup.map!(g => g.name).equal(["First group", "Second group", "Empty group", "Third group"]));
     
     
