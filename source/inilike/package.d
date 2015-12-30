@@ -26,4 +26,4 @@ module inilike;
 
 public import inilike.common;
 public import inilike.range;
-
+public import inilike.file;
