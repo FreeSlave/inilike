@@ -626,6 +626,7 @@ Key=Value1
 Key=Value2`;
 
     try {
+        shouldThrow = null;
         new IniLikeFile(iniLikeStringReader(contents));
     } catch(IniLikeException e) {
         shouldThrow = e;
@@ -642,6 +643,7 @@ Key=Value2`;
 $#=File manager`;
 
     try {
+        shouldThrow = null;
         new IniLikeFile(iniLikeStringReader(contents));
     } catch(IniLikeException e) {
         shouldThrow = e;
@@ -655,6 +657,7 @@ $#=File manager`;
 Key=Value
 =File manager`;
     try {
+        shouldThrow = null;
         new IniLikeFile(iniLikeStringReader(contents));
     } catch(IniLikeException e) {
         shouldThrow = e;
@@ -669,11 +672,26 @@ Valid=Key
 NotKeyNotGroupNotComment`;
 
     try {
+        shouldThrow = null;
         new IniLikeFile(iniLikeStringReader(contents));
     } catch(IniLikeException e) {
         shouldThrow = e;
     }
     assert(shouldThrow !is null, "Invalid entry should throw");
     assert(shouldThrow.lineNumber == 4);
+    
+    contents = 
+`#Comment
+NotComment
+[Group]
+Valid=Key`;
+    try {
+        shouldThrow = null;
+        new IniLikeFile(iniLikeStringReader(contents));
+    } catch(IniLikeException e) {
+        shouldThrow = e;
+    }
+    assert(shouldThrow !is null, "Invalid comment should throw");
+    assert(shouldThrow.lineNumber == 2);
 }
 
