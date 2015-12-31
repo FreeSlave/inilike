@@ -86,7 +86,7 @@ public:
      * Throws: $(B Exception) if key is not valid
      */
     @safe string opIndexAssign(string value, string key) {
-        enforce(isValidKey(separateFromLocale(key)[0]), "key is invalid");
+        enforce(isValidKey(key), "key is invalid");
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
@@ -179,14 +179,17 @@ public:
         group["Name[ru@jargon]"] = "Кодер";
         group["Name[ru]"] = "Программист";
         group["Name[de_DE@dialect]"] = "Programmierer"; //just example
+        group["Name[fr_FR]"] = "Programmeur";
         group["GenericName"] = "Program";
         group["GenericName[ru]"] = "Программа";
         assert(group["Name"] == "Programmer");
         assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
         assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
         assert(group.localizedValue("Name", "ru") == "Программист");
+        assert(group.localizedValue("Name", "ru_RU.UTF-8") == "Разработчик");
         assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
         assert(group.localizedValue("Name", "de_DE@dialect") == "Programmierer");
+        assert(group.localizedValue("Name", "fr_FR.UTF-8") == "Programmeur");
         assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
     }
     
@@ -356,7 +359,7 @@ public:
                         string value = t.value.stripLeft;
                         
                         if (key.length) {
-                            if (!isValidKey(separateFromLocale(key)[0])) {
+                            if (!isValidKey(key)) {
                                 if (options & ReadOptions.ignoreInvalidKeys) {
                                     continue;
                                 } else {
