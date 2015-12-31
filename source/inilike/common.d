@@ -346,7 +346,7 @@ unittest
     auto lt1 = parseLocaleName(firstLocale);
     auto lt2 = parseLocaleName(secondLocale);
     
-    ushort score1, score2;
+    int score1, score2;
     
     if (lt.lang == lt1.lang) {
         score1 = 1 + ((lt.country == lt1.country) ? 2 : 0 ) + ((lt.modifier == lt1.modifier) ? 1 : 0);
