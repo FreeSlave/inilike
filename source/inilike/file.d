@@ -153,12 +153,12 @@ public:
                 }
             }
             if (modifier.length) {
-                pick = value(localizedKey(key, lang, null, modifier));
+                pick = value(localizedKey(key, lang, string.init, modifier));
                 if (pick !is null) {
                     return pick;
                 }
             }
-            pick = value(localizedKey(key, lang, null));
+            pick = value(localizedKey(key, lang, string.init));
             if (pick !is null) {
                 return pick;
             }
@@ -215,7 +215,7 @@ public:
      * Returns: Range of Tuple!(string, "key", string, "value")
      */
     @nogc @safe auto byKeyValue() const nothrow {
-        return _values.filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => KeyValueTuple(v.key, v.value));
+        return _values.filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
     }
     
     /**
@@ -584,7 +584,7 @@ Comment=Manage files
     assert(firstEntry["GenericName"] == "File Manager");
     
     assert(ilf.group("Another Group")["Name"] == "Commander");
-    assert(equal(ilf.group("Another Group").byKeyValue(), [ KeyValueTuple("Name", "Commander"), KeyValueTuple("Comment", "Manage files") ]));
+    assert(equal(ilf.group("Another Group").byKeyValue(), [ keyValueTuple("Name", "Commander"), keyValueTuple("Comment", "Manage files") ]));
     
     assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group"]));
     

@@ -18,11 +18,15 @@ package {
     import std.string;
     import std.traits;
     import std.typecons;
+    import std.conv : to;
     
     static if( __VERSION__ < 2066 ) enum nogc = 1;
     
-    alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier");
-    alias KeyValueTuple = Tuple!(string, "key", string, "value");
+    auto keyValueTuple(String)(String key, String value)
+    {
+        alias KeyValueTuple = Tuple!(String, "key", String, "value");
+        return KeyValueTuple(key, value);
+    }
 }
 
 private @nogc @trusted auto stripLeftChar(inout(char)[] s) pure nothrow
@@ -98,13 +102,13 @@ unittest
  * Returns: group name or empty string if the entry is not group header.
  */
 
-@nogc @trusted string parseGroupHeader(string s) pure nothrow
+@nogc @trusted auto parseGroupHeader(inout(char)[] s) pure nothrow
 {
     s = s.stripRightChar;
     if (isGroupHeader(s)) {
         return s[1..$-1];
     } else {
-        return string.init;
+        return null;
     }
 }
 
@@ -113,6 +117,8 @@ unittest
 {
     assert(parseGroupHeader("[Group name]") == "Group name");
     assert(parseGroupHeader("NotGroupName") == string.init);
+    
+    assert(parseGroupHeader("[Group name]".dup) == "Group name".dup);
 }
 
 /**
@@ -121,16 +127,16 @@ unittest
  * Note: this function does not check whether parsed key is valid key.
  * See_Also: isValidKey
  */
-@nogc @trusted auto parseKeyValue(string s) pure nothrow
+@nogc @trusted auto parseKeyValue(String)(String s) pure nothrow if (is(String : const(char)[]))
 {
     auto t = s.findSplit("=");
     auto key = t[0];
     auto value = t[2];
     
     if (t[0].length && t[1].length) {
-        return KeyValueTuple(t[0], t[2]);
+        return keyValueTuple(t[0], t[2]);
     }
-    return KeyValueTuple(string.init, string.init);
+    return keyValueTuple(String.init, String.init);
 }
 
 ///
@@ -140,6 +146,8 @@ unittest
     assert(parseKeyValue("Key=") == tuple("Key", string.init));
     assert(parseKeyValue("=Value") == tuple(string.init, string.init));
     assert(parseKeyValue("NotKeyValue") == tuple(string.init, string.init));
+    
+    assert(parseKeyValue("Key=Value".dup) == tuple("Key".dup, "Value".dup));
 }
 
 /**
@@ -147,7 +155,7 @@ unittest
 * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html Basic format of the file)
 * Note: this function automatically separate key from locale. It does not check validity of the locale itself.
 */
-@nogc @safe bool isValidKey(string key) pure nothrow {
+@nogc @safe bool isValidKey(String)(String key) pure nothrow if (is(String : const(char)[])) {
     key = separateFromLocale(key)[0];
     
     @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
@@ -228,9 +236,12 @@ unittest
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
  * See_Also: parseLocaleName
  */
-@safe string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow
+@safe String makeLocaleName(String)(String lang, String country = null, String encoding = null, String modifier = null) pure
+if (is(String : const(char)[]))
 {
-    return lang ~ (country.length ? "_"~country : "") ~ (encoding.length ? "."~encoding : "") ~ (modifier.length ? "@"~modifier : "");
+    return lang ~ (country.length ? "_".to!String~country : String.init)
+                ~ (encoding.length ? ".".to!String~encoding : String.init)
+                ~ (modifier.length ? "@".to!String~modifier : String.init);
 }
 
 ///
@@ -239,7 +250,9 @@ unittest
     assert(makeLocaleName("ru", "RU") == "ru_RU");
     assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
     assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
-    assert(makeLocaleName("ru", null, null, "mod") == "ru@mod");
+    assert(makeLocaleName("ru", string.init, string.init, "mod") == "ru@mod");
+    
+    assert(makeLocaleName("ru".dup, (char[]).init, (char[]).init, "mod".dup) == "ru@mod".dup);
 }
 
 /**
@@ -247,7 +260,7 @@ unittest
  * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
  * See_Also: makeLocaleName
  */
-@nogc @trusted auto parseLocaleName(string locale) pure nothrow
+@nogc @trusted auto parseLocaleName(String)(String locale) pure nothrow if (is(String : const(char)[]))
 {
     auto modifiderSplit = findSplit(locale, "@");
     auto modifier = modifiderSplit[2];
@@ -260,6 +273,8 @@ unittest
     
     auto lang = countrySplit[0];
     
+    alias LocaleTuple = Tuple!(String, "lang", String, "country", String, "encoding", String, "modifier");
+    
     return LocaleTuple(lang, country, encoding, modifier);
 }
 
@@ -269,6 +284,8 @@ unittest
     assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
     assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
     assert(parseLocaleName("ru_RU") == tuple("ru", "RU", string.init, string.init));
+    
+    assert(parseLocaleName("ru_RU.UTF-8@mod".dup) == tuple("ru".dup, "RU".dup, "UTF-8".dup, "mod".dup));
 }
 
 /**
@@ -276,13 +293,13 @@ unittest
  * Returns: localized key in form key[locale] dropping encoding out if present.
  * See_Also: separateFromLocale
  */
-@safe string localizedKey(string key, string locale) pure nothrow
+@safe String localizedKey(String)(String key, String locale) pure nothrow if (is(String : const(char)[]))
 {
     auto t = parseLocaleName(locale);
     if (!t.encoding.empty) {
-        locale = makeLocaleName(t.lang, t.country, null, t.modifier);
+        locale = makeLocaleName(t.lang, t.country, String.init, t.modifier);
     }
-    return key ~ "[" ~ locale ~ "]";
+    return key ~ "[".to!String ~ locale ~ "]".to!String;
 }
 
 ///
@@ -295,15 +312,16 @@ unittest
 /**
  * ditto, but constructs locale name from arguments.
  */
-@safe string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow
+@safe String localizedKey(String)(String key, String lang, String country, String modifier = null) pure
 {
-    return key ~ "[" ~ makeLocaleName(lang, country, null, modifier) ~ "]";
+    return key ~ "[".to!String ~ makeLocaleName(lang, country, String.init, modifier) ~ "]".to!String;
 }
 
 ///
 unittest 
 {
     assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
+    assert(localizedKey("Name".dup, "ru".dup, "RU".dup) == "Name[ru_RU]".dup);
 }
 
 /** 
@@ -312,14 +330,14 @@ unittest
  * Returns: tuple of key and locale name.
  * See_Also: localizedKey
  */
-@nogc @trusted Tuple!(string, string) separateFromLocale(string key) pure nothrow {
+@nogc @trusted auto separateFromLocale(String)(String key) pure nothrow if (is(String : const(char)[])) {
     if (key.endsWith("]")) {
         auto t = key.findSplit("[");
         if (t[1].length) {
             return tuple(t[0], t[2][0..$-1]);
         }
     }
-    return tuple(key, string.init);
+    return tuple(key, typeof(key).init);
 }
 
 ///
@@ -327,6 +345,9 @@ unittest
 {
     assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
     assert(separateFromLocale("Name") == tuple("Name", string.init));
+    
+    char[] mutableString = "Hello".dup;
+    assert(separateFromLocale(mutableString) == tuple(mutableString, typeof(mutableString).init));
 }
 
 /**
@@ -340,7 +361,7 @@ unittest
  * Returns: The best alternative among two or empty string if none of alternatives match original locale.
  * Note: value with empty locale is considered better choice than value with locale that does not match the original one.
  */
-@nogc @trusted auto chooseLocalizedValue(string locale, string firstLocale, string firstValue, string secondLocale, string secondValue) pure nothrow
+@nogc @trusted auto chooseLocalizedValue(String)(String locale, String firstLocale, String firstValue, String secondLocale, String secondValue) pure nothrow
 {   
     auto lt = parseLocaleName(locale);
     auto lt1 = parseLocaleName(firstLocale);
@@ -361,7 +382,7 @@ unittest
         } else if (secondLocale.empty && !secondValue.empty) {
             return tuple(secondLocale, secondValue);
         } else {
-            return tuple(string.init, string.init);
+            return tuple(String.init, String.init);
         }
     }
     
@@ -400,18 +421,19 @@ unittest
  * Returns: Escaped string.
  * See_Also: unescapeValue
  */
-@trusted string escapeValue(string value) nothrow pure {
-    return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
+@trusted String escapeValue(String)(String value) pure if (is(String : const(char)[])) {
+    return value.replace("\\", `\\`.to!String).replace("\n", `\n`.to!String).replace("\r", `\r`.to!String).replace("\t", `\t`.to!String);
 }
 
 ///
 unittest 
 {
     assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`); // notice how the string on the right is raw.
+    assert("a\\next\nline\top".dup.escapeValue() == `a\\next\nline\top`.dup);
 }
 
-@trusted string doUnescape(string value, in Tuple!(char, char)[] pairs) nothrow pure {
-    auto toReturn = appender!string();
+@trusted auto doUnescape(inout(char)[] value, in Tuple!(char, char)[] pairs) nothrow pure {
+    auto toReturn = appender!(typeof(value))();
     
     for (size_t i = 0; i < value.length; i++) {
         if (value[i] == '\\') {
@@ -436,7 +458,7 @@ unittest
  * Returns: Unescaped string.
  * See_Also: escapeValue
  */
-@trusted string unescapeValue(string value) nothrow pure
+@trusted auto unescapeValue(inout(char)[] value) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
        tuple('s', ' '),
@@ -452,4 +474,5 @@ unittest
 unittest 
 {
     assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top"); // notice how the string on the left is raw.
+    assert(`a\\next\nline\top`.dup.unescapeValue() == "a\\next\nline\top".dup);
 }

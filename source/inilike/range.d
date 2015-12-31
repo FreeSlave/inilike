@@ -18,7 +18,7 @@ import inilike.common;
 /**
  * Object for iterating through ini-like file entries.
  */
-struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!Range))
+struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : const(char[])))
 {
     this(Range range)
     {
@@ -42,17 +42,17 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
         {
             static struct Group
             {
-                this(Range range, string originalLine)
+                this(Range range, ElementType!Range originalLine)
                 {
                     _range = range;
                     _originalLine = originalLine;
                 }
                 
-                string name() {
+                auto name() {
                     return parseGroupHeader(_originalLine);
                 }
                 
-                string originalLine() {
+                auto originalLine() {
                     return _originalLine;
                 }
                 
@@ -62,14 +62,14 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
                 }
                 
             private:
-                string _originalLine;
+                ElementType!Range _originalLine;
                 Range _range;
             }
             
             this(Range range)
             {
                 _range = range.find!(isGroupHeader);
-                string line;
+                ElementType!Range line;
                 if (!_range.empty) {
                     line = _range.front;
                     _range.popFront();
@@ -90,7 +90,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
             void popFront()
             {
                 _range = _range.find!(isGroupHeader);
-                string line;
+                ElementType!Range line;
                 if (!_range.empty) {
                     line = _range.front;
                     _range.popFront();
@@ -121,36 +121,6 @@ auto iniLikeRangeReader(Range)(Range range)
     return IniLikeReader!Range(range);
 }
 
-/**
- * Convenient function for reading ini-like contents from the file.
- * Throws: $(B ErrnoException) if file could not be opened.
- * Note: This function uses byLineCopy internally. Fallbacks to byLine on older compilers.
- * See_Also: iniLikeRangeReader, iniLikeStringReader
- */
-@trusted auto iniLikeFileReader(string fileName)
-{
-    import std.stdio;
-    static if( __VERSION__ < 2067 ) {
-        return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
-    } else {
-        return iniLikeRangeReader(File(fileName, "r").byLineCopy());
-    }
-}
-
-/**
- * Convenient function for reading ini-like contents from string.
- * Note: on frontends < 2.067 it uses splitLines thereby allocates strings.
- * See_Also: iniLikeRangeReader, iniLikeFileReader
- */
-@trusted auto iniLikeStringReader(string contents)
-{
-    static if( __VERSION__ < 2067 ) {
-        return iniLikeRangeReader(contents.splitLines());
-    } else {
-        return iniLikeRangeReader(contents.lineSplitter());
-    }
-}
-
 ///
 unittest
 {
@@ -167,7 +137,7 @@ KeyValue4
 [Third group]
 KeyValue5
 KeyValue6`;
-    auto r = iniLikeStringReader(contents);
+    auto r = iniLikeRangeReader(contents.splitLines());
     
     auto byFirstLines = r.byFirstLines;
     
@@ -194,3 +164,32 @@ KeyValue6`;
     assert(byGroup.empty);
 }
 
+/**
+ * Convenient function for reading ini-like contents from the file.
+ * Throws: $(B ErrnoException) if file could not be opened.
+ * Note: This function uses byLineCopy internally. Fallbacks to byLine on older compilers.
+ * See_Also: iniLikeRangeReader, iniLikeStringReader
+ */
+@trusted auto iniLikeFileReader(string fileName)
+{
+    import std.stdio;
+    static if( __VERSION__ < 2067 ) {
+        return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
+    } else {
+        return iniLikeRangeReader(File(fileName, "r").byLineCopy());
+    }
+}
+
+/**
+ * Convenient function for reading ini-like contents from string.
+ * Note: on frontends < 2.067 it uses splitLines thereby allocates strings.
+ * See_Also: iniLikeRangeReader, iniLikeFileReader
+ */
+@trusted auto iniLikeStringReader(String)(String contents) if (is(String : const(char)[]))
+{
+    static if( __VERSION__ < 2067 ) {
+        return iniLikeRangeReader(contents.splitLines());
+    } else {
+        return iniLikeRangeReader(contents.lineSplitter());
+    }
+}
