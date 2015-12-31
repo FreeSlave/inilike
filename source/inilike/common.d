@@ -152,7 +152,7 @@ unittest
 
 /**
 * Test whether the string is valid key. 
-* Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html Basic format of the file)
+* Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html, Basic format of the file)
 * Note: this function automatically separate key from locale. It does not check validity of the locale itself.
 */
 @nogc @safe bool isValidKey(String)(String key) pure nothrow if (is(String : const(char)[])) {
@@ -355,7 +355,7 @@ unittest
  * Params:
  *  locale = original locale to match to
  *  firstLocale = first locale
- *  firstValie = first value
+ *  firstValue = first value
  *  secondLocale = second locale
  *  secondValue = second value
  * Returns: The best alternative among two or empty string if none of alternatives match original locale.
