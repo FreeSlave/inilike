@@ -351,7 +351,9 @@ public:
                     }
                     
                     if (line.isComment || line.strip.empty) {
-                        currentGroup.addComment(line);
+                        if (options & ReadOptions.preserveComments) {
+                            currentGroup.addComment(line);
+                        }
                     } else {
                         auto t = parseKeyValue(line);
                         
@@ -502,7 +504,6 @@ public:
         return _fileName;
     }
     
-protected:
     @nogc @trusted final auto firstComments() const nothrow {
         return _firstComments;
     }
@@ -538,6 +539,7 @@ Comment=Manage files
 
     auto ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.preserveComments, "contents.ini");
     assert(ilf.fileName() == "contents.ini");
+    assert(equal(ilf.firstComments(), ["# The first comment"]));
     assert(ilf.group("First Entry"));
     assert(ilf.group("Another Group"));
     assert(ilf.saveToString() == contents);
@@ -557,7 +559,7 @@ Comment=Manage files
         assert(filf.fileName() == tempFile);
         remove(tempFile);
     } catch(Exception e) {
-        //probably some environment issue unrelated to unittest itself, e.g. could not write to file.
+        //environmental error in unittests
     }
     
     auto firstEntry = ilf.group("First Entry");
@@ -585,6 +587,10 @@ Comment=Manage files
     
     assert(ilf.group("Another Group")["Name"] == "Commander");
     assert(equal(ilf.group("Another Group").byKeyValue(), [ keyValueTuple("Name", "Commander"), keyValueTuple("Comment", "Manage files") ]));
+    assert(equal(
+        ilf.group("Another Group").byIniLine(), 
+        [IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment")]
+    ));
     
     assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group"]));
     
@@ -604,6 +610,13 @@ Comment=Manage files
     static assert(is(typeof(cilf.byGroup())));
     static assert(is(typeof(cilf.group("First Entry").byKeyValue())));
     static assert(is(typeof(cilf.group("First Entry").byIniLine())));
+    
+    ilf = new IniLikeFile(iniLikeStringReader(contents));
+    assert(ilf.firstComments().empty);
+    assert(equal(
+        ilf.group("Another Group").byIniLine(), 
+        [IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files")]
+    ));
     
     contents = 
 `[Group]
