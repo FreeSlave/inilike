@@ -3,7 +3,7 @@
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015
+ *  Roman Chistokhodov, 2015-2016
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -33,7 +33,7 @@ private @nogc @trusted auto stripLeftChar(inout(char)[] s) pure nothrow
 {
     size_t spaceNum = 0;
     while(spaceNum < s.length) {
-        char c = s[spaceNum];
+        const char c = s[spaceNum];
         if (c == ' ' || c == '\t') {
             spaceNum++;
         } else {
@@ -47,7 +47,7 @@ private @nogc @trusted auto stripRightChar(inout(char)[] s) pure nothrow
 {
     size_t spaceNum = 0;
     while(spaceNum < s.length) {
-        char c = s[$-1-spaceNum];
+        const char c = s[$-1-spaceNum];
         if (c == ' ' || c == '\t') {
             spaceNum++;
         } else {
@@ -133,8 +133,8 @@ unittest
     auto key = t[0];
     auto value = t[2];
     
-    if (t[0].length && t[1].length) {
-        return keyValueTuple(t[0], t[2]);
+    if (key.length && t[1].length) {
+        return keyValueTuple(key, value);
     }
     return keyValueTuple(String.init, String.init);
 }
@@ -236,7 +236,10 @@ unittest
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
  * See_Also: parseLocaleName
  */
-@safe String makeLocaleName(String)(String lang, String country = null, String encoding = null, String modifier = null) pure
+@safe String makeLocaleName(String)(
+    String lang, String country = null, 
+    String encoding = null, 
+    String modifier = null) pure
 if (is(String : const(char)[]))
 {
     return lang ~ (country.length ? "_".to!String~country : String.init)
@@ -361,11 +364,14 @@ unittest
  * Returns: The best alternative among two or empty string if none of alternatives match original locale.
  * Note: value with empty locale is considered better choice than value with locale that does not match the original one.
  */
-@nogc @trusted auto chooseLocalizedValue(String)(String locale, String firstLocale, String firstValue, String secondLocale, String secondValue) pure nothrow
+@nogc @trusted auto chooseLocalizedValue(String)(
+    String locale, 
+    String firstLocale,  String firstValue, 
+    String secondLocale, String secondValue) pure nothrow
 {   
-    auto lt = parseLocaleName(locale);
-    auto lt1 = parseLocaleName(firstLocale);
-    auto lt2 = parseLocaleName(secondLocale);
+    const lt = parseLocaleName(locale);
+    const lt1 = parseLocaleName(firstLocale);
+    const lt2 = parseLocaleName(secondLocale);
     
     int score1, score2;
     
@@ -432,13 +438,20 @@ unittest
     assert("a\\next\nline\top".dup.escapeValue() == `a\\next\nline\top`.dup);
 }
 
+
+/**
+ * Unescape value.
+ * Params:
+ *  value = string to unescape
+ *  pairs = pairs of escaped characters and their unescaped forms.
+ */
 @trusted auto doUnescape(inout(char)[] value, in Tuple!(char, char)[] pairs) nothrow pure {
     auto toReturn = appender!(typeof(value))();
     
     for (size_t i = 0; i < value.length; i++) {
         if (value[i] == '\\') {
-            if (i < value.length - 1) {
-                char c = value[i+1];
+            if (i+1 < value.length) {
+                const char c = value[i+1];
                 auto t = pairs.find!"a[0] == b[0]"(tuple(c,c));
                 if (!t.empty) {
                     toReturn.put(t.front[1]);
@@ -474,5 +487,6 @@ unittest
 unittest 
 {
     assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top"); // notice how the string on the left is raw.
+    assert(`\\next\nline\top`.unescapeValue() == "\\next\nline\top");
     assert(`a\\next\nline\top`.dup.unescapeValue() == "a\\next\nline\top".dup);
 }

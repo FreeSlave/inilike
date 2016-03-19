@@ -38,3 +38,8 @@ where **locale** is the [POSIX locale](http://en.wikipedia.org/wiki/Locale) with
 
 Inilike library has support for lookup of localized values, using the algorithm described in [Desktop Entry Specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html).
 
+## Subclassing IniLikeFile
+
+IniLikeFile is the base class for file of ini-like format. To change its functionality it's needed to be subclassed. 
+See [example](examples/derived/source/app.d) showing which functions can be overridden.
+

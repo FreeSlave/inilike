@@ -3,7 +3,7 @@
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015
+ *  Roman Chistokhodov, 2015-2016
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -20,6 +20,9 @@ import inilike.common;
  */
 struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : const(char[])))
 {
+    /**
+     * Construct from other range of strings.
+     */
     this(Range range)
     {
         _range = range;
@@ -172,7 +175,7 @@ KeyValue6`;
  */
 @trusted auto iniLikeFileReader(string fileName)
 {
-    import std.stdio;
+    import std.stdio : File;
     static if( __VERSION__ < 2067 ) {
         return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
     } else {

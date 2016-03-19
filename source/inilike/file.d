@@ -3,7 +3,7 @@
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015
+ *  Roman Chistokhodov, 2015-2016
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -15,10 +15,16 @@ module inilike.file;
 private import std.exception;
 
 import inilike.common;
-import inilike.range;
+public import inilike.range;
 
+/**
+ * Line in group.
+ */
 struct IniLikeLine
 {
+    /**
+     * Type of line.
+     */
     enum Type
     {
         None = 0,
@@ -26,24 +32,54 @@ struct IniLikeLine
         KeyValue = 2
     }
     
+    /**
+     * Contruct from comment.
+     */
     @nogc @safe static IniLikeLine fromComment(string comment) nothrow {
         return IniLikeLine(comment, null, Type.Comment);
     }
+    
+    /**
+     * Construct from key and value.
+     */
     @nogc @safe static IniLikeLine fromKeyValue(string key, string value) nothrow {
         return IniLikeLine(key, value, Type.KeyValue);
     }
+    
+    /**
+     * Get comment.
+     * Returns: Comment or empty string if type is not Type.Comment.
+     */
     @nogc @safe string comment() const nothrow {
         return _type == Type.Comment ? _first : null;
     }
+    
+    /**
+     * Get key.
+     * Returns: Key or empty string if type is not Type.KeyValue
+     */
     @nogc @safe string key() const nothrow {
         return _type == Type.KeyValue ? _first : null;
     }
+    
+    /**
+     * Get value.
+     * Returns: Value or empty string if type is not Type.KeyValue
+     */
     @nogc @safe string value() const nothrow {
         return _type == Type.KeyValue ? _second : null;
     }
+    
+    /**
+     * Get type of line.
+     */
     @nogc @safe Type type() const nothrow {
         return _type;
     }
+    
+    /**
+     * Assign Type.None to line.
+     */
     @nogc @safe void makeNone() nothrow {
         _type = Type.None;
     }
@@ -59,21 +95,22 @@ private:
  * You can create and use instances of this class only in the context of $(B IniLikeFile) or its derivatives.
  * Note: Keys are case-sensitive.
  */
-final class IniLikeGroup
+class IniLikeGroup
 {
-private:
-    @nogc @safe this(string name) nothrow {
-        _name = name;
-    }
-    
 public:
+    /**
+     * Create instange on IniLikeGroup and set its name to groupName.
+     */
+    @nogc @safe this(string groupName) nothrow {
+        _name = groupName;
+    }
     
     /**
      * Returns: The value associated with the key
      * Note: It's an error to access nonexistent value
      * See_Also: value
      */
-    @nogc @safe string opIndex(string key) const nothrow {
+    @nogc @safe final string opIndex(string key) const nothrow {
         auto i = key in _indices;
         assert(_values[*i].type == IniLikeLine.Type.KeyValue);
         assert(_values[*i].key == key);
@@ -82,11 +119,11 @@ public:
     
     /**
      * Insert new value or replaces the old one if value associated with key already exists.
-     * Returns: Inserted/updated value
+     * Returns: Inserted/updated value or null string if key was not added.
      * Throws: $(B Exception) if key is not valid
      */
-    @safe string opIndexAssign(string value, string key) {
-        enforce(isValidKey(key), "key is invalid");
+    @safe final string opIndexAssign(string value, string key) {
+        validateKeyValue(key, value);
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
@@ -100,7 +137,7 @@ public:
      * Ditto, localized version.
      * See_Also: setLocalizedValue, localizedValue
      */
-    @safe string opIndexAssign(string value, string key, string locale) {
+    @safe final string opIndexAssign(string value, string key, string locale) {
         string keyName = localizedKey(key, locale);
         return this[keyName] = value;
     }
@@ -108,7 +145,7 @@ public:
     /**
      * Tell if group contains value associated with the key.
      */
-    @nogc @safe bool contains(string key) const nothrow {
+    @nogc @safe final bool contains(string key) const nothrow {
         return value(key) !is null;
     }
     
@@ -116,7 +153,7 @@ public:
      * Get value by key.
      * Returns: The value associated with the key, or defaultValue if group does not contain such item.
      */
-    @nogc @safe string value(string key, string defaultValue = null) const nothrow {
+    @nogc @safe final string value(string key, string defaultValue = null) const nothrow {
         auto pick = key in _indices;
         if (pick) {
             if(_values[*pick].type == IniLikeLine.Type.KeyValue) {
@@ -131,9 +168,9 @@ public:
      * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
      * Returns: The localized value associated with key and locale, or defaultValue if group does not contain item with this key.
      */
-    @safe string localizedValue(string key, string locale, string defaultValue = null) const nothrow {
+    @safe final string localizedValue(string key, string locale, string defaultValue = null) const nothrow {
         //Any ideas how to get rid of this boilerplate and make less allocations?
-        auto t = parseLocaleName(locale);
+        const t = parseLocaleName(locale);
         auto lang = t.lang;
         auto country = t.country;
         auto modifier = t.modifier;
@@ -196,14 +233,15 @@ public:
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
      */
-    @safe void setLocalizedValue(string key, string locale, string value) {
+    @safe final void setLocalizedValue(string key, string locale, string value) {
         this[key, locale] = value;
     }
     
     /**
      * Removes entry by key. To remove localized values use localizedKey.
+     * See_Also: inilike.common.localizedKey
      */
-    @safe void removeEntry(string key) nothrow {
+    @safe final void removeEntry(string key) nothrow {
         auto pick = key in _indices;
         if (pick) {
             _values[*pick].makeNone();
@@ -211,31 +249,121 @@ public:
     }
     
     /**
-     * Iterate by Key-Value pairs.
-     * Returns: Range of Tuple!(string, "key", string, "value")
+     * Remove all entries satisying ToDelete function. 
+     * ToDelete should be function accepting string key and value and return boolean.
      */
-    @nogc @safe auto byKeyValue() const nothrow {
-        return _values.filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
+    @trusted final void removeEntries(alias ToDelete)()
+    {
+        IniLikeLine[] values;
+        
+        foreach(line; _values) {
+            if (line.type == IniLikeLine.Type.KeyValue && ToDelete(line.key, line.value)) {
+                _indices.remove(line.key);
+                continue;
+            }
+            if (line.type == IniLikeLine.Type.None) {
+                continue;
+            }
+            values ~= line;
+        }
+        
+        _values = values;
+        foreach(i, line; _values) {
+            if (line.type == IniLikeLine.Type.KeyValue) {
+                _indices[line.key] = i;
+            }
+        }
+    }
+    
+    unittest
+    {
+        string contents = 
+`[Group]
+Key1=Value1
+Name=Value
+# Comment
+ToRemove=Value
+Key2=Value2
+NameGeneric=Value
+Key3=Value3`;
+        auto ilf = new IniLikeFile(iniLikeStringReader(contents));
+        ilf.group("Group").removeEntry("ToRemove");
+        ilf.group("Group").removeEntries!(function bool(string key, string value) {
+            return key.startsWith("Name");
+        })();
+        
+        auto group = ilf.group("Group");
+        
+        assert(group.value("Key1") == "Value1");
+        assert(group.value("Key2") == "Value2");
+        assert(group.value("Key3") == "Value3");
+        assert(equal(group.byIniLine(), [
+                    IniLikeLine.fromKeyValue("Key1", "Value1"), IniLikeLine.fromComment("# Comment"), 
+                    IniLikeLine.fromKeyValue("Key2", "Value2"), IniLikeLine.fromKeyValue("Key3", "Value3")]));
+        assert(!group.contains("Name"));
+        assert(!group.contains("NameGeneric"));
+    }
+    
+    /**
+     * Iterate by Key-Value pairs.
+     * Returns: Range of Tuple!(string, "key", string, "value").
+     * See_Also: value, localizedValue
+     */
+    @nogc @safe final auto byKeyValue() const nothrow {
+        return staticByKeyValue(_values);
+    }
+    
+    /**
+     * Empty range of the same type as byKeyValue. Can be used in derived classes if it's needed to have empty range.
+     * Returns: Empty range of Tuple!(string, "key", string, "value").
+     */
+    @nogc @safe static auto emptyByKeyValue() nothrow {
+        return staticByKeyValue((IniLikeLine[]).init);
+    }
+    
+    ///
+    unittest
+    {
+        assert(emptyByKeyValue().empty);
+        auto group = new IniLikeGroup("Group name");
+        static assert(is(typeof(emptyByKeyValue()) == typeof(group.byKeyValue()) ));
+    }
+    
+    private @nogc @safe static auto staticByKeyValue(const(IniLikeLine)[] values) nothrow {
+        return values.filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
     }
     
     /**
      * Get name of this group.
      * Returns: The name of this group.
      */
-    @nogc @safe string name() const nothrow {
+    @nogc @safe final string name() const nothrow {
         return _name;
     }
     
     /**
      * Returns: Range of $(B IniLikeLine)s included in this group.
-     * Note: This does not include Group line itself.
      */
-    @system auto byIniLine() const {
+    @system final auto byIniLine() const {
         return _values.filter!(v => v.type != IniLikeLine.Type.None);
     }
     
-    @trusted void addComment(string comment) nothrow {
+    /**
+     * Add comment line into the group.
+     * See_Also: byIniLine
+     */
+    @trusted final void addComment(string comment) nothrow {
         _values ~= IniLikeLine.fromComment(comment);
+    }
+    
+protected:
+    /**
+     * Validate key and value before setting value to key for this group and throw exception if not valid.
+     * Can be reimplemented in derived classes. 
+     * Default implementation check if key is not empty string, leaving value unchecked.
+     */
+    @trusted void validateKeyValue(string key, string value) const {
+        enforce(key.length > 0, "key must not be empty");
     }
     
 private:
@@ -249,14 +377,22 @@ private:
  */
 class IniLikeException : Exception
 {
+    /**
+     * Create IniLikeException with msg and lineNumber.
+     */
     this(string msg, size_t lineNumber, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
         super(msg, file, line, next);
         _lineNumber = lineNumber;
     }
     
-    ///Number of line in the file where the exception occured, starting from 1. Don't be confused with $(B line) property of $(B Throwable).
+    ///Number of line in the file where the exception occured, starting from 1. Don't confuse with $(B line) property of $(B Throwable).
     @nogc @safe size_t lineNumber() const nothrow {
         return _lineNumber;
+    }
+    
+    ///Number of line in the file where the exception occured, starting from 0. Don't confuse with $(B line) property of $(B Throwable).
+    @nogc @safe size_t lineIndex() const nothrow {
+        return _lineNumber ? _lineNumber - 1 : 0;
     }
     
 private:
@@ -269,18 +405,62 @@ private:
  */
 class IniLikeFile
 {
-public:
-    ///Flags to manage .ini like file reading
-    enum ReadOptions
+protected:
+    /**
+     * Add comment for group.
+     * This function is called only in constructor and can be reimplemented in derived classes.
+     * Params:
+     *  comment = Comment line to add.
+     *  currentGroup = The group returned recently by createGroup during parsing. Can be null (e.g. if discarded)
+     *  groupName = The name of the currently parsed group. Set even if currentGroup is null.
+     * See_Also: createGroup
+     */
+    @trusted void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
     {
-        noOptions = 0,              /// Read all groups, skip comments and empty lines, stop on any error.
-        //firstGroupOnly = 1,         /// Ignore other groups than the first one.
-        preserveComments = 2,       /// Preserve comments and empty lines. Use this when you want to keep them across writing.
-        ignoreGroupDuplicates = 4,  /// Ignore group duplicates. The first found will be used.
-        ignoreInvalidKeys = 8,      /// Skip invalid keys during parsing.
-        ignoreKeyDuplicates = 16    /// Ignore key duplicates. The first found will be used.
+        if (currentGroup) {
+            currentGroup.addComment(comment);
+        }
     }
     
+    /**
+     * Add key/value pair for group.
+     * This function is called only in constructor and can be reimplemented in derived classes.
+     * Params:
+     *  key = Key to insert or set.
+     *  value = Value to set for key.
+     *  currentGroup = The group returned recently by createGroup during parsing. Can be null (e.g. if discarded)
+     *  groupName = The name of the currently parsed group. Set even if currentGroup is null.
+     * See_Also: createGroup
+     */
+    @trusted void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
+    {
+        if (currentGroup) {
+            if (currentGroup.contains(key)) {
+                throw new Exception("key already exists");
+            }
+            currentGroup[key] = value;
+        }
+    }
+    
+    /**
+     * Create iniLikeGroup by groupName.
+     * This function is called only in constructor and can be reimplemented in derived classes, 
+     * e.g. to insert additional checks or create specific derived class depending on groupName.
+     * Returned value is later passed to addCommentForGroup and addKeyValueForGroup methods as currentGroup. 
+     * Reimplemented method also is allowd to return null.
+     * Default implementation just returns empty IniLikeGroup with name set to groupName.
+     * Throws:
+     *  $(B Exception) if group with such name already exists.
+     * See_Also:
+     *  addKeyValueForGroup, addCommentForGroup
+     */
+    @trusted IniLikeGroup createGroup(string groupName)
+    {
+        enforce(group(groupName) is null, "group already exists");
+        return new IniLikeGroup(groupName);
+    }
+    
+public:
     /**
      * Construct empty IniLikeFile, i.e. without any groups or values
      */
@@ -294,8 +474,8 @@ public:
      *  $(B ErrnoException) if file could not be opened.
      *  $(B IniLikeException) if error occured while reading the file.
      */
-    @safe this(string fileName, ReadOptions options = ReadOptions.noOptions) {
-        this(iniLikeFileReader(fileName), options, fileName);
+    @safe this(string fileName) {
+        this(iniLikeFileReader(fileName), fileName);
     }
     
     /**
@@ -303,14 +483,13 @@ public:
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
-    @trusted this(IniLikeReader)(IniLikeReader reader, ReadOptions options = ReadOptions.noOptions, string fileName = null)
+    @trusted this(IniLikeReader)(IniLikeReader reader, string fileName = null)
     {
         size_t lineNumber = 0;
         IniLikeGroup currentGroup;
-        bool ignoreKeyValues;
         
         version(DigitalMars) {
-            static void foo(size_t val) {}
+            static void foo(size_t ) {}
         }
         
         try {
@@ -318,9 +497,7 @@ public:
             {
                 lineNumber++;
                 if (line.isComment || line.strip.empty) {
-                    if (options & ReadOptions.preserveComments) {
-                        addFirstComment(line);
-                    }
+                    addFirstComment(line);
                 } else {
                     throw new Exception("Expected comment or empty line before any group");
                 }
@@ -329,57 +506,30 @@ public:
             foreach(g; reader.byGroup)
             {
                 lineNumber++;
+                string groupName = g.name;
                 
                 version(DigitalMars) {
                     foo(lineNumber); //fix dmd codgen bug with -O
                 }
                 
-                ignoreKeyValues = false;
-                
-                if ((options & ReadOptions.ignoreGroupDuplicates) && group(g.name)) {
-                    ignoreKeyValues = true;
-                } else {
-                    currentGroup = addGroup(g.name);
-                }
+                currentGroup = addGroup(groupName);
                 
                 foreach(line; g.byEntry)
                 {
                     lineNumber++;
                     
-                    if (ignoreKeyValues) {
-                        continue;
-                    }
-                    
                     if (line.isComment || line.strip.empty) {
-                        if (options & ReadOptions.preserveComments) {
-                            currentGroup.addComment(line);
-                        }
+                        addCommentForGroup(line, currentGroup, groupName);
                     } else {
-                        auto t = parseKeyValue(line);
+                        const t = parseKeyValue(line);
                         
                         string key = t.key.stripRight;
                         string value = t.value.stripLeft;
                         
-                        if (key.length) {
-                            if (!isValidKey(key)) {
-                                if (options & ReadOptions.ignoreInvalidKeys) {
-                                    continue;
-                                } else {
-                                    throw new Exception("invalid key");
-                                }
-                            }
-                            
-                            if (currentGroup.contains(key)) {
-                                if (options & ReadOptions.ignoreKeyDuplicates) {
-                                    continue;
-                                } else {
-                                    throw new Exception("key duplicate");
-                                }
-                            } else {
-                                currentGroup[key] = t[1];
-                            }
-                        } else {
+                        if (key.length == 0 && value.length == 0) {
                             throw new Exception("Expected comment, empty line or key value inside group");
+                        } else {
+                            addKeyValueForGroup(key, value, currentGroup, groupName);
                         }
                     }
                 }
@@ -398,7 +548,7 @@ public:
      * Returns: IniLikeGroup instance associated with groupName or $(B null) if not found.
      * See_Also: byGroup
      */
-    @nogc @safe inout(IniLikeGroup) group(string groupName) nothrow inout {
+    @nogc @safe final inout(IniLikeGroup) group(string groupName) nothrow inout {
         auto pick = groupName in _groupIndices;
         if (pick) {
             return _groups[*pick];
@@ -412,14 +562,14 @@ public:
      * Throws: Exception if group with such name already exists or groupName is empty.
      * See_Also: removeGroup, group
      */
-    @safe IniLikeGroup addGroup(string groupName) {
+    @safe final IniLikeGroup addGroup(string groupName) {
         enforce(groupName.length, "empty group name");
-        enforce(group(groupName) is null, "group already exists");
         
-        auto iniLikeGroup = new IniLikeGroup(groupName);
-        _groupIndices[groupName] = _groups.length;
-        _groups ~= iniLikeGroup;
-        
+        auto iniLikeGroup = createGroup(groupName);
+        if (iniLikeGroup !is null) {
+            _groupIndices[groupName] = _groups.length;
+            _groups ~= iniLikeGroup;
+        }
         return iniLikeGroup;
     }
     
@@ -453,8 +603,8 @@ public:
      * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
      * See_Also: saveToString, save
      */
-    @trusted void saveToFile(string fileName) const {
-        import std.stdio;
+    @trusted final void saveToFile(string fileName) const {
+        import std.stdio : File;
         
         auto f = File(fileName, "w");
         void dg(in string line) {
@@ -468,7 +618,7 @@ public:
      * Returns: A string that represents the contents of file.
      * See_Also: saveToFile, save
      */
-    @safe string saveToString() const {
+    @safe final string saveToString() const {
         auto a = appender!(string[])();
         save(a);
         return a.data.join("\n");
@@ -479,7 +629,7 @@ public:
      * Those strings can be written to the file or be showed in text area.
      * Note: returned strings don't have trailing newline character.
      */
-    @trusted const void save(OutRange)(OutRange sink) if (isOutputRange!(OutRange, string)) {
+    @trusted final void save(OutRange)(OutRange sink) const if (isOutputRange!(OutRange, string)) {
         foreach(line; firstComments()) {
             put(sink, line);
         }
@@ -500,7 +650,7 @@ public:
      * File path where the object was loaded from.
      * Returns: File name as was specified on the object creation.
      */
-    @nogc @safe string fileName() nothrow const {
+    @nogc @safe final string fileName() nothrow const {
         return _fileName;
     }
     
@@ -508,7 +658,7 @@ public:
         return _firstComments;
     }
     
-    @trusted final void addFirstComment(string line) nothrow {
+    @trusted void addFirstComment(string line) nothrow {
         _firstComments ~= line;
     }
     
@@ -537,7 +687,7 @@ Name=Commander
 Comment=Manage files
 # The last comment`;
 
-    auto ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.preserveComments, "contents.ini");
+    auto ilf = new IniLikeFile(iniLikeStringReader(contents), "contents.ini");
     assert(ilf.fileName() == "contents.ini");
     assert(equal(ilf.firstComments(), ["# The first comment"]));
     assert(ilf.group("First Entry"));
@@ -555,7 +705,7 @@ Comment=Manage files
         }
         
         IniLikeFile filf; 
-        assertNotThrown!IniLikeException(filf = new IniLikeFile(tempFile, IniLikeFile.ReadOptions.preserveComments));
+        assertNotThrown!IniLikeException(filf = new IniLikeFile(tempFile));
         assert(filf.fileName() == tempFile);
         remove(tempFile);
     } catch(Exception e) {
@@ -611,73 +761,32 @@ Comment=Manage files
     static assert(is(typeof(cilf.group("First Entry").byKeyValue())));
     static assert(is(typeof(cilf.group("First Entry").byIniLine())));
     
-    ilf = new IniLikeFile(iniLikeStringReader(contents));
-    assert(ilf.firstComments().empty);
-    assert(equal(
-        ilf.group("Another Group").byIniLine(), 
-        [IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files")]
-    ));
-    
     contents = 
 `[Group]
 GenericName=File manager
 [Group]
 GenericName=Commander`;
 
-    IniLikeException shouldThrow = null;
-    try {
-        new IniLikeFile(iniLikeStringReader(contents));
-    } catch(IniLikeException e) {
-        shouldThrow = e;
-    }
+    auto shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Duplicate groups should throw");
     assert(shouldThrow.lineNumber == 3);
-    
-    ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreGroupDuplicates);
-    assert(ilf.group("Group").value("GenericName") == "File manager");
+    assert(shouldThrow.lineIndex == 2);
     
     contents = 
 `[Group]
 Key=Value1
 Key=Value2`;
 
-    try {
-        shouldThrow = null;
-        new IniLikeFile(iniLikeStringReader(contents));
-    } catch(IniLikeException e) {
-        shouldThrow = e;
-    }
-    
+    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Duplicate key should throw");
     assert(shouldThrow.lineNumber == 3);
-    
-    ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreKeyDuplicates);
-    assert(ilf.group("Group").value("Key") == "Value1");
-    
-    contents = 
-`[Group]
-$#=File manager`;
-
-    try {
-        shouldThrow = null;
-        new IniLikeFile(iniLikeStringReader(contents));
-    } catch(IniLikeException e) {
-        shouldThrow = e;
-    }
-    assert(shouldThrow !is null, "Invalid key should throw");
-    assert(shouldThrow.lineNumber == 2);
-    assertNotThrown(new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.ignoreInvalidKeys));
     
     contents =
 `[Group]
 Key=Value
 =File manager`;
-    try {
-        shouldThrow = null;
-        new IniLikeFile(iniLikeStringReader(contents));
-    } catch(IniLikeException e) {
-        shouldThrow = e;
-    }
+
+    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Empty key should throw");
     assert(shouldThrow.lineNumber == 3);
     
@@ -687,12 +796,7 @@ Key=Value
 Valid=Key
 NotKeyNotGroupNotComment`;
 
-    try {
-        shouldThrow = null;
-        new IniLikeFile(iniLikeStringReader(contents));
-    } catch(IniLikeException e) {
-        shouldThrow = e;
-    }
+    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid entry should throw");
     assert(shouldThrow.lineNumber == 4);
     
@@ -701,12 +805,7 @@ NotKeyNotGroupNotComment`;
 NotComment
 [Group]
 Valid=Key`;
-    try {
-        shouldThrow = null;
-        new IniLikeFile(iniLikeStringReader(contents));
-    } catch(IniLikeException e) {
-        shouldThrow = e;
-    }
+    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid comment should throw");
     assert(shouldThrow.lineNumber == 2);
 }
