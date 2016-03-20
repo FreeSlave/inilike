@@ -8,11 +8,8 @@ import inilike.common;
 
 final class DesktopEntry : IniLikeGroup
 {
-    this(bool addVersion = true) {
+    this() {
         super("Desktop Entry");
-        if (addVersion) {
-            this["Version"] = "1.0";
-        }
     }
 protected:
     @trusted override void validateKeyValue(string key, string value) const {
@@ -39,6 +36,7 @@ final class DesktopFile : IniLikeFile
     {
         _options = options;
         super(reader);
+        enforce(_desktopEntry !is null, new IniLikeException("No \"Desktop Entry\" group", 0));
     }
     
     @safe override void removeGroup(string groupName) nothrow {
@@ -48,9 +46,9 @@ final class DesktopFile : IniLikeFile
         super.removeGroup(groupName);
     }
     
-    @trusted override void addFirstComment(string line) nothrow {
+    @trusted override void addLeadingComment(string line) nothrow {
         if (_options & ReadOptions.preserveComments) {
-            super.addFirstComment(line);
+            super.addLeadingComment(line);
         }
     }
     
@@ -90,7 +88,7 @@ protected:
         }
         
         if (groupName == "Desktop Entry") {
-            _desktopEntry = new DesktopEntry(false);
+            _desktopEntry = new DesktopEntry();
             return _desktopEntry;
         } else if (groupName.startsWith("X-")) {
             if (_options & ReadOptions.skipExtensionGroups) {
@@ -132,12 +130,20 @@ Key=Value
     df.removeGroup("Desktop Entry");
     assert(df.group("Desktop Entry") !is null);
     assert(df.desktopEntry() !is null);
-    assert(df.firstComments().empty);
+    assert(df.leadingComments().empty);
     assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value")]));
     
     df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.preserveComments);
-    assert(equal(df.firstComments(), ["# First comment"]));
+    assert(equal(df.leadingComments(), ["# First comment"]));
     assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromComment("# Comment in group")]));
+    
+    contents = 
+`[X-SomeGroup]
+Key=Value`;
+
+    auto thrown = collectException!IniLikeException(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    assert(thrown !is null);
+    assert(thrown.lineNumber == 0);
     
     contents = 
 `[Desktop Entry]

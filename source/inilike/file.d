@@ -378,25 +378,43 @@ private:
 class IniLikeException : Exception
 {
     /**
-     * Create IniLikeException with msg and lineNumber.
+     * Create IniLikeException with msg, lineNumber and fileName.
      */
-    this(string msg, size_t lineNumber, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+    this(string msg, size_t lineNumber, string fileName = null, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
         super(msg, file, line, next);
         _lineNumber = lineNumber;
+        _fileName = fileName;
     }
     
-    ///Number of line in the file where the exception occured, starting from 1. Don't confuse with $(B line) property of $(B Throwable).
-    @nogc @safe size_t lineNumber() const nothrow {
+    /** 
+     * Number of line in the file where the exception occured, starting from 1.
+     * 0 means that error is not bound to any existing line, but instead relate to file at whole (e.g. required group or key is missing).
+     * Don't confuse with $(B line) property of $(B Throwable).
+     */
+    @nogc @safe size_t lineNumber() const nothrow pure {
         return _lineNumber;
     }
     
-    ///Number of line in the file where the exception occured, starting from 0. Don't confuse with $(B line) property of $(B Throwable).
-    @nogc @safe size_t lineIndex() const nothrow {
+    /**
+     * Number of line in the file where the exception occured, starting from 0. 
+     * Don't confuse with $(B line) property of $(B Throwable).
+     */
+    @nogc @safe size_t lineIndex() const nothrow pure {
         return _lineNumber ? _lineNumber - 1 : 0;
+    }
+    
+    /**
+     * Name of ini-like file where error occured. 
+     * Can be empty if fileName was not given upon IniLikeFile creating.
+     * Don't confuse with $(B file) property of $(B Throwable).
+     */
+    @nogc @safe string fileName() const nothrow pure {
+        return _fileName;
     }
     
 private:
     size_t _lineNumber;
+    string _fileName;
 }
 
 /**
@@ -480,6 +498,7 @@ public:
     
     /**
      * Read from range of $(B IniLikeLine)s.
+     * Note: All exceptions thrown within constructor are turning into IniLikeException.
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
@@ -497,7 +516,7 @@ public:
             {
                 lineNumber++;
                 if (line.isComment || line.strip.empty) {
-                    addFirstComment(line);
+                    addLeadingComment(line);
                 } else {
                     throw new Exception("Expected comment or empty line before any group");
                 }
@@ -539,7 +558,7 @@ public:
             
         }
         catch (Exception e) {
-            throw new IniLikeException(e.msg, lineNumber, e.file, e.line, e.next);
+            throw new IniLikeException(e.msg, lineNumber, fileName, e.file, e.line, e.next);
         }
     }
     
@@ -630,7 +649,7 @@ public:
      * Note: returned strings don't have trailing newline character.
      */
     @trusted final void save(OutRange)(OutRange sink) const if (isOutputRange!(OutRange, string)) {
-        foreach(line; firstComments()) {
+        foreach(line; leadingComments()) {
             put(sink, line);
         }
         
@@ -654,19 +673,19 @@ public:
         return _fileName;
     }
     
-    @nogc @trusted final auto firstComments() const nothrow {
-        return _firstComments;
+    @nogc @trusted final auto leadingComments() const nothrow {
+        return _leadingComments;
     }
     
-    @trusted void addFirstComment(string line) nothrow {
-        _firstComments ~= line;
+    @trusted void addLeadingComment(string line) nothrow {
+        _leadingComments ~= line;
     }
     
 private:
     string _fileName;
     size_t[string] _groupIndices;
     IniLikeGroup[] _groups;
-    string[] _firstComments;
+    string[] _leadingComments;
 }
 
 ///
@@ -689,7 +708,7 @@ Comment=Manage files
 
     auto ilf = new IniLikeFile(iniLikeStringReader(contents), "contents.ini");
     assert(ilf.fileName() == "contents.ini");
-    assert(equal(ilf.firstComments(), ["# The first comment"]));
+    assert(equal(ilf.leadingComments(), ["# The first comment"]));
     assert(ilf.group("First Entry"));
     assert(ilf.group("Another Group"));
     assert(ilf.saveToString() == contents);
@@ -767,10 +786,11 @@ GenericName=File manager
 [Group]
 GenericName=Commander`;
 
-    auto shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
+    auto shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents), "config.ini"));
     assert(shouldThrow !is null, "Duplicate groups should throw");
     assert(shouldThrow.lineNumber == 3);
     assert(shouldThrow.lineIndex == 2);
+    assert(shouldThrow.fileName == "config.ini");
     
     contents = 
 `[Group]
