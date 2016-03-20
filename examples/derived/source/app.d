@@ -94,13 +94,13 @@ protected:
             if (_options & ReadOptions.skipExtensionGroups) {
                 return null;
             }
-            return new IniLikeGroup(groupName);
+            return createEmptyGroup(groupName);
         } else {
             if (_options & ReadOptions.ignoreUnknownGroups) {
                 if (_options & ReadOptions.skipUnknownGroups) {
                     return null;
                 } else {
-                    return new IniLikeGroup(groupName);
+                    return createEmptyGroup(groupName);
                 }
             } else {
                 throw new Exception("Unknown group");

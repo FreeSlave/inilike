@@ -101,7 +101,7 @@ public:
     /**
      * Create instange on IniLikeGroup and set its name to groupName.
      */
-    @nogc @safe this(string groupName) nothrow {
+    protected @nogc @safe this(string groupName) nothrow {
         _name = groupName;
     }
     
@@ -475,6 +475,13 @@ protected:
     @trusted IniLikeGroup createGroup(string groupName)
     {
         enforce(group(groupName) is null, "group already exists");
+        return createEmptyGroup(groupName);
+    }
+    
+    /**
+     * Can be used in derived classes to create instance of IniLikeGroup.
+     */
+    @safe static createEmptyGroup(string groupName) {
         return new IniLikeGroup(groupName);
     }
     
