@@ -31,7 +31,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : con
     /**
      * Iterate through lines before any group header. It does not check if all lines are comments or empty lines.
      */
-    auto byFirstLines()
+    auto byLeadingLines()
     {
         return _range.until!(isGroupHeader);
     }
@@ -142,10 +142,10 @@ KeyValue5
 KeyValue6`;
     auto r = iniLikeRangeReader(contents.splitLines());
     
-    auto byFirstLines = r.byFirstLines;
+    auto byLeadingLines = r.byLeadingLines;
     
-    assert(byFirstLines.front == "First comment");
-    assert(byFirstLines.equal(["First comment", "Second comment"]));
+    assert(byLeadingLines.front == "First comment");
+    assert(byLeadingLines.equal(["First comment", "Second comment"]));
     
     auto byGroup = r.byGroup;
     

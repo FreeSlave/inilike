@@ -519,7 +519,7 @@ public:
         }
         
         try {
-            foreach(line; reader.byFirstLines)
+            foreach(line; reader.byLeadingLines)
             {
                 lineNumber++;
                 if (line.isComment || line.strip.empty) {

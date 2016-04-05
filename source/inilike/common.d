@@ -427,8 +427,8 @@ unittest
  * Returns: Escaped string.
  * See_Also: unescapeValue
  */
-@trusted String escapeValue(String)(String value) pure if (is(String : const(char)[])) {
-    return value.replace("\\", `\\`.to!String).replace("\n", `\n`.to!String).replace("\r", `\r`.to!String).replace("\t", `\t`.to!String);
+@trusted inout(char)[] escapeValue(inout(char)[] value) pure {
+    return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
 }
 
 ///
@@ -445,7 +445,7 @@ unittest
  *  value = string to unescape
  *  pairs = pairs of escaped characters and their unescaped forms.
  */
-@trusted auto doUnescape(inout(char)[] value, in Tuple!(char, char)[] pairs) nothrow pure {
+@trusted inout(char)[] doUnescape(inout(char)[] value, in Tuple!(char, char)[] pairs) nothrow pure {
     auto toReturn = appender!(typeof(value))();
     
     for (size_t i = 0; i < value.length; i++) {
@@ -463,6 +463,13 @@ unittest
         toReturn.put(value[i]);
     }
     return toReturn.data;
+}
+
+unittest
+{
+    static immutable Tuple!(char, char)[] pairs = [tuple('\\', '\\')];
+    static assert(is(typeof(doUnescape("", pairs)) == string));
+    static assert(is(typeof(doUnescape("".dup, pairs)) == char[]));
 }
 
 
