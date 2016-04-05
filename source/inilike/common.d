@@ -427,8 +427,8 @@ unittest
  * Returns: Escaped string.
  * See_Also: unescapeValue
  */
-@trusted inout(char)[] escapeValue(inout(char)[] value) pure {
-    return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
+@trusted String escapeValue(String)(String value) pure if (is(String : const(char)[])) {
+    return value.replace("\\", `\\`.to!String).replace("\n", `\n`.to!String).replace("\r", `\r`.to!String).replace("\t", `\t`.to!String);
 }
 
 ///
