@@ -36,6 +36,11 @@ struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : con
         return _range.until!(isGroupHeader);
     }
     
+    deprecated auto byFirstLines()
+    {
+        return byLeadingLines();
+    }
+    
     /**
      * Iterate thorugh groups of ini-like file.
      */
