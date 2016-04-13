@@ -27,9 +27,9 @@ struct IniLikeLine
      */
     enum Type
     {
-        None = 0,
-        Comment = 1,
-        KeyValue = 2
+        None = 0,   /// deleted or invalid line
+        Comment = 1, /// a comment or empty line
+        KeyValue = 2 /// key-value pair
     }
     
     /**
@@ -99,15 +99,16 @@ class IniLikeGroup
 {
 public:
     /**
-     * Create instange on IniLikeGroup and set its name to groupName.
+     * Create instance on IniLikeGroup and set its name to groupName.
      */
     protected @nogc @safe this(string groupName) nothrow {
         _name = groupName;
     }
     
     /**
-     * Returns: The value associated with the key
-     * Note: It's an error to access nonexistent value
+     * Returns: The value associated with the key.
+     * Note: The value is not unescaped automatically.
+     * Warning: It's an error to access nonexistent value.
      * See_Also: value
      */
     @nogc @safe final string opIndex(string key) const nothrow {
@@ -117,13 +118,7 @@ public:
         return _values[*i].value;
     }
     
-    /**
-     * Insert new value or replaces the old one if value associated with key already exists.
-     * Returns: Inserted/updated value or null string if key was not added.
-     * Throws: $(B Exception) if key is not valid
-     */
-    @safe final string opIndexAssign(string value, string key) {
-        validateKeyValue(key, value);
+    private @safe final string setKeyValueImpl(string key, string value) nothrow {
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
@@ -133,8 +128,24 @@ public:
             return value;
         }
     }
+    
     /**
-     * Ditto, localized version.
+     * Insert new value or replaces the old one if value associated with key already exists.
+     * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
+     * Returns: Inserted/updated value or null string if key was not added.
+     * Throws: IniLikeEntryException if key or value is not valid.
+     * See_Also: writeEntry
+     */
+    @safe final string opIndexAssign(string value, string key) {
+        validateKeyValue(key, value);
+        if (value.needEscaping()) {
+            throw new IniLikeEntryException("The value needs to be escaped", key, value);
+        }
+        return setKeyValueImpl(key, value);
+    }
+    /**
+     * Assign localized value.
+     * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
      * See_Also: setLocalizedValue, localizedValue
      */
     @safe final string opIndexAssign(string value, string key, string locale) {
@@ -152,6 +163,8 @@ public:
     /**
      * Get value by key.
      * Returns: The value associated with the key, or defaultValue if group does not contain such item.
+     * Note: The value is not unescaped automatically.
+     * See_Also: readEntry, localizedValue
      */
     @nogc @safe final string value(string key, string defaultValue = null) const nothrow {
         auto pick = key in _indices;
@@ -165,10 +178,35 @@ public:
     }
     
     /**
-     * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
-     * Returns: The localized value associated with key and locale, or defaultValue if group does not contain item with this key.
+     * Get value by key. This function automatically unescape the found value before returning.
+     * Returns: The unescaped value associated with key or null if not found.
+     * See_Also: value
      */
-    @safe final string localizedValue(string key, string locale, string defaultValue = null) const nothrow {
+    @safe final string readEntry(string key, string locale = null) const nothrow {
+        if (locale.length) {
+            return localizedValue(key, locale).unescapeValue();
+        } else {
+            return value(key).unescapeValue();
+        }
+    }
+    
+    /**
+     * Set value by key. This function automatically escape the value (you should not escape value yourself) when wriging it.
+     * Throws: IniLikeEntryException if key or value is not valid.
+     */
+    @safe final string writeEntry(string key, string value, string locale = null) {
+        validateKeyValue(key, value);
+        string keyName = localizedKey(key, locale);
+        return setKeyValueImpl(keyName, value.escapeValue());
+    }
+    
+    /**
+     * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
+     * Returns: The localized value associated with key and locale, or the value associated with non-localized key if group does not contain localized value.
+     * Note: The value is not unescaped automatically.
+     * See_Also: value
+     */
+    @safe final string localizedValue(string key, string locale) const nothrow {
         //Any ideas how to get rid of this boilerplate and make less allocations?
         const t = parseLocaleName(locale);
         auto lang = t.lang;
@@ -201,7 +239,7 @@ public:
             }
         }
         
-        return value(key, defaultValue);
+        return value(key);
     }
     
     ///
@@ -232,20 +270,27 @@ public:
     
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
+     * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
+     * Throws: IniLikeEntryException if key or value is not valid.
+     * See_Also: writeEntry
      */
     @safe final void setLocalizedValue(string key, string locale, string value) {
         this[key, locale] = value;
     }
     
     /**
-     * Removes entry by key. To remove localized values use localizedKey.
-     * See_Also: inilike.common.localizedKey
+     * Removes entry by key.
      */
     @safe final void removeEntry(string key) nothrow {
         auto pick = key in _indices;
         if (pick) {
             _values[*pick].makeNone();
         }
+    }
+    
+    ///ditto, but remove entry by localized key
+    @safe final void removeEntry(string key, string locale) nothrow {
+        removeEntry(localizedKey(key, locale));
     }
     
     /**
@@ -275,6 +320,7 @@ public:
         }
     }
     
+    ///
     unittest
     {
         string contents = 
@@ -361,9 +407,12 @@ protected:
      * Validate key and value before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes. 
      * Default implementation check if key is not empty string, leaving value unchecked.
+     * Throws: IniLikeEntryException if either key or value is invalid.
      */
     @trusted void validateKeyValue(string key, string value) const {
-        enforce(key.length > 0, "key must not be empty");
+        if (!key.length) {
+            throw new IniLikeEntryException("key must not be empty", key, value);
+        }
     }
     
 private:
@@ -415,6 +464,36 @@ class IniLikeException : Exception
 private:
     size_t _lineNumber;
     string _fileName;
+}
+
+/**
+ * Exception thrown when trying to set invalid key or value.
+ */
+class IniLikeEntryException : Exception
+{
+    this(string msg, string key, string value, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+        super(msg, file, line, next);
+        _key = key;
+        _value = value;
+    }
+    
+    /**
+     * The key the value associated with.
+     */
+    @nogc @safe string key() const nothrow pure {
+        return _key;
+    }
+    
+    /**
+     * The value associated with key.
+     */
+    @nogc @safe string value() const nothrow pure {
+        return _value;
+    }
+    
+private:
+    string _key;
+    string _value;
 }
 
 /**
@@ -707,6 +786,8 @@ unittest
 # Comment
 GenericName=File manager
 GenericName[ru]=Файловый менеджер
+NeedUnescape=yes\\i\tneed
+NeedUnescape[ru]=да\\я\tнуждаюсь
 # Another comment
 [Another Group]
 Name=Commander
@@ -745,6 +826,17 @@ Comment=Manage files
     assert(firstEntry.contains("GenericName[ru]"));
     assert(firstEntry["GenericName"] == "File manager");
     assert(firstEntry.value("GenericName") == "File manager");
+    
+    assert(firstEntry.value("NeedUnescape") == `yes\\i\tneed`);
+    assert(firstEntry.readEntry("NeedUnescape") == "yes\\i\tneed");
+    assert(firstEntry.localizedValue("NeedUnescape", "ru") == `да\\я\tнуждаюсь`);
+    assert(firstEntry.readEntry("NeedUnescape", "ru") == "да\\я\tнуждаюсь");
+    
+    firstEntry.writeEntry("NeedEscape", "i\rneed\nescape");
+    assert(firstEntry.value("NeedEscape") == `i\rneed\nescape`);
+    firstEntry.writeEntry("NeedEscape", "мне\rнужно\nэкранирование");
+    assert(firstEntry.localizedValue("NeedEscape", "ru") == `мне\rнужно\nэкранирование`);
+    
     firstEntry["GenericName"] = "Manager of files";
     assert(firstEntry["GenericName"] == "Manager of files");
     firstEntry["Authors"] = "Unknown";
@@ -758,6 +850,8 @@ Comment=Manage files
     
     firstEntry.removeEntry("GenericName");
     assert(!firstEntry.contains("GenericName"));
+    firstEntry.removeEntry("GenericName", "ru");
+    assert(!firstEntry.contains("GenericName[ru]"));
     firstEntry["GenericName"] = "File Manager";
     assert(firstEntry["GenericName"] == "File Manager");
     
@@ -781,6 +875,15 @@ Comment=Manage files
     
     ilf.addGroup("Other Group");
     assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group", "Other Group"]));
+    
+    auto entryException = collectException!IniLikeEntryException(ilf.group("Another Group")[""] = "Value");
+    assert(entryException !is null);
+    assert(entryException.key == "");
+    assert(entryException.value == "Value");
+    entryException = collectException!IniLikeEntryException(ilf.group("Another Group")["Key"] = "New\nline");
+    assert(entryException !is null);
+    assert(entryException.key == "Key");
+    assert(entryException.value == "New\nline");
     
     const IniLikeFile cilf = ilf;
     static assert(is(typeof(cilf.byGroup())));

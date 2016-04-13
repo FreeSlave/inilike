@@ -36,44 +36,56 @@ struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : con
         return _range.until!(isGroupHeader);
     }
     
-    deprecated auto byFirstLines()
+    /**
+     * Object representing single group (section) being parsed in .ini-like file.
+     */
+    static struct Group(Range)
     {
-        return byLeadingLines();
+        private this(Range range, ElementType!Range originalLine)
+        {
+            _range = range;
+            _originalLine = originalLine;
+        }
+        
+        /**
+         * Name of group being parsed (without brackets).
+         * Note: This can become invalid during parsing the Input Range 
+         * (e.g. if string buffer storing this value is reused in later reads).
+         */
+        auto name() {
+            return parseGroupHeader(_originalLine);
+        }
+        
+        /**
+         * Original line of group header (i.e. name with brackets).
+         * Note: This can become invalid during parsing the Input Range 
+         * (e.g. if string buffer storing this value is reused in later reads).
+         */
+        auto originalLine() {
+            return _originalLine;
+        }
+        
+        /**
+         * Iterate over group entries - may be key-value pairs as well as comments or empty lines.
+         */
+        auto byEntry()
+        {
+            return _range.until!(isGroupHeader);
+        }
+        
+    private:
+        ElementType!Range _originalLine;
+        Range _range;
     }
     
     /**
-     * Iterate thorugh groups of ini-like file.
+     * Iterate thorugh groups of .ini-like file.
+     * Returns: Range of Group objects.
      */
     auto byGroup()
-    {   
+    {
         static struct ByGroup
         {
-            static struct Group
-            {
-                this(Range range, ElementType!Range originalLine)
-                {
-                    _range = range;
-                    _originalLine = originalLine;
-                }
-                
-                auto name() {
-                    return parseGroupHeader(_originalLine);
-                }
-                
-                auto originalLine() {
-                    return _originalLine;
-                }
-                
-                auto byEntry()
-                {
-                    return _range.until!(isGroupHeader);
-                }
-                
-            private:
-                ElementType!Range _originalLine;
-                Range _range;
-            }
-            
             this(Range range)
             {
                 _range = range.find!(isGroupHeader);
@@ -82,7 +94,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : con
                     line = _range.front;
                     _range.popFront();
                 }
-                _currentGroup = Group(_range, line);
+                _currentGroup = Group!Range(_range, line);
             }
             
             auto front()
@@ -103,16 +115,15 @@ struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : con
                     line = _range.front;
                     _range.popFront();
                 }
-                _currentGroup = Group(_range, line);
+                _currentGroup = Group!Range(_range, line);
             }
         private:
-            Group _currentGroup;
+            Group!Range _currentGroup;
             Range _range;
         }
         
         return ByGroup(_range.find!(isGroupHeader));
     }
-    
 private:
     Range _range;
 }
@@ -156,7 +167,6 @@ KeyValue6`;
     
     assert(byGroup.front.name == "First group");
     assert(byGroup.front.originalLine == "[First group]");
-    //assert(byGroup.map!(g => g.name).equal(["First group", "Second group", "Empty group", "Third group"]));
     
     
     assert(byGroup.front.byEntry.front == "KeyValue1");

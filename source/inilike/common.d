@@ -292,22 +292,44 @@ unittest
 }
 
 /**
+ * Drop encoding part from locale (it's not used in constructing localized keys).
+ * Returns: Locale string with encoding part dropped out or original string if encoding was not present.
+ */
+@safe String dropEncodingPart(String)(String locale) pure nothrow if (is(String : const(char)[]))
+{
+    auto t = parseLocaleName(locale);
+    if (!t.encoding.empty) {
+        return makeLocaleName(t.lang, t.country, String.init, t.modifier);
+    }
+    return locale;
+}
+
+///
+unittest
+{
+    assert("ru_RU.UTF-8".dropEncodingPart() == "ru_RU");
+    string locale = "ru_RU";
+    assert(locale.dropEncodingPart() is locale);
+}
+
+/**
  * Construct localized key name from key and locale.
  * Returns: localized key in form key[locale] dropping encoding out if present.
  * See_Also: separateFromLocale
  */
 @safe String localizedKey(String)(String key, String locale) pure nothrow if (is(String : const(char)[]))
 {
-    auto t = parseLocaleName(locale);
-    if (!t.encoding.empty) {
-        locale = makeLocaleName(t.lang, t.country, String.init, t.modifier);
+    if (locale.empty) {
+        return key;
     }
-    return key ~ "[".to!String ~ locale ~ "]".to!String;
+    return key ~ "[".to!String ~ locale.dropEncodingPart() ~ "]".to!String;
 }
 
 ///
 unittest 
 {
+    string key = "Name";
+    assert(localizedKey(key, "") == key);
     assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
     assert(localizedKey("Name", "ru_RU.UTF-8") == "Name[ru_RU]");
 }
@@ -419,6 +441,30 @@ unittest
 }
 
 /**
+ * Check if value needs to be escaped. This function is currently tolerant to single slashes.
+ * Returns: true if value needs to escaped, false otherwise.
+ */
+@nogc @safe bool needEscaping(string value) nothrow pure
+{
+    for (size_t i=0; i<value.length; ++i) {
+        char c = value[i];
+        if (c == '\n' || c == '\t' || c == '\r') {
+            return true;
+        }
+    }
+    return false;
+}
+
+///
+unittest
+{
+    assert("new\nline".needEscaping);
+    assert(!`i have \ slash`.needEscaping);
+    assert("i\tlike\ttabs".needEscaping);
+    assert(!"just a text".needEscaping);
+}
+
+/**
  * Escapes string by replacing special symbols with escaped sequences. 
  * These symbols are: '\\' (backslash), '\n' (newline), '\r' (carriage return) and '\t' (tab).
  * Note: 
@@ -440,15 +486,27 @@ unittest
 
 
 /**
- * Unescape value.
+ * Unescape value. If value does not need unescaping this function returns original value.
  * Params:
  *  value = string to unescape
  *  pairs = pairs of escaped characters and their unescaped forms.
  */
 @trusted inout(char)[] doUnescape(inout(char)[] value, in Tuple!(char, char)[] pairs) nothrow pure {
-    auto toReturn = appender!(typeof(value))();
+    //little optimization to avoid unneeded allocations.
+    size_t i = 0;
+    for (; i < value.length; i++) {
+        if (value[i] == '\\') {
+            break;
+        }
+    }
+    if (i == value.length) {
+        return value;
+    }
     
-    for (size_t i = 0; i < value.length; i++) {
+    auto toReturn = appender!(typeof(value))();
+    toReturn.put(value[0..i]);
+    
+    for (; i < value.length; i++) {
         if (value[i] == '\\') {
             if (i+1 < value.length) {
                 const char c = value[i+1];
@@ -495,5 +553,7 @@ unittest
 {
     assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top"); // notice how the string on the left is raw.
     assert(`\\next\nline\top`.unescapeValue() == "\\next\nline\top");
+    string value = `nounescape`;
+    assert(value.unescapeValue() is value); //original is returned.
     assert(`a\\next\nline\top`.dup.unescapeValue() == "a\\next\nline\top".dup);
 }
