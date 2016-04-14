@@ -441,14 +441,14 @@ unittest
 }
 
 /**
- * Check if value needs to be escaped. This function is currently tolerant to single slashes.
+ * Check if value needs to be escaped. This function is currently tolerant to single slashes and tabs.
  * Returns: true if value needs to escaped, false otherwise.
  */
 @nogc @safe bool needEscaping(string value) nothrow pure
 {
     for (size_t i=0; i<value.length; ++i) {
         char c = value[i];
-        if (c == '\n' || c == '\t' || c == '\r') {
+        if (c == '\n' || c == '\r') {
             return true;
         }
     }
@@ -460,16 +460,13 @@ unittest
 {
     assert("new\nline".needEscaping);
     assert(!`i have \ slash`.needEscaping);
-    assert("i\tlike\ttabs".needEscaping);
+    assert("i like\rcarriage\rreturns".needEscaping);
     assert(!"just a text".needEscaping);
 }
 
 /**
  * Escapes string by replacing special symbols with escaped sequences. 
  * These symbols are: '\\' (backslash), '\n' (newline), '\r' (carriage return) and '\t' (tab).
- * Note: 
- *  Currently the library stores values as they were loaded from file, i.e. escaped. 
- *  To keep things consistent you should take care about escaping the value before inserting. The library will not do it for you.
  * Returns: Escaped string.
  * See_Also: unescapeValue
  */

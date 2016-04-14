@@ -26,7 +26,6 @@ Freedesktop specifications use the format which I call **ini-like** because it's
 
 1. Comments start with '#', not ';'.
 2. Each comment is always placed on its own line. Key-value can't be mixed with a comment on the same line.
-3. Only the characters A-Za-z0-9- may be used in key names.
 
 ## Localized values lookup. 
 

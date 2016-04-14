@@ -118,7 +118,11 @@ public:
         return _values[*i].value;
     }
     
-    private @safe final string setKeyValueImpl(string key, string value) nothrow {
+    private @safe final string setKeyValueImpl(string key, string value) nothrow 
+    in {
+        assert(!value.needEscaping);
+    }
+    body {
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
@@ -133,7 +137,7 @@ public:
      * Insert new value or replaces the old one if value associated with key already exists.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
      * Returns: Inserted/updated value or null string if key was not added.
-     * Throws: IniLikeEntryException if key or value is not valid.
+     * Throws: IniLikeEntryException if key or value is not valid or value needs to be escaped.
      * See_Also: writeEntry
      */
     @safe final string opIndexAssign(string value, string key) {
@@ -191,7 +195,7 @@ public:
     }
     
     /**
-     * Set value by key. This function automatically escape the value (you should not escape value yourself) when wriging it.
+     * Set value by key. This function automatically escape the value (you should not escape value yourself) when writing it.
      * Throws: IniLikeEntryException if key or value is not valid.
      */
     @safe final string writeEntry(string key, string value, string locale = null) {
@@ -202,11 +206,16 @@ public:
     
     /**
      * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
-     * Returns: The localized value associated with key and locale, or the value associated with non-localized key if group does not contain localized value.
+     * Params:
+     *  key = Non-localized key.
+     *  locale = Locale in intereset.
+     *  nonLocaleFallback = Allow fallback to non-localized version.
+     * Returns: The localized value associated with key and locale, 
+     * or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
      * Note: The value is not unescaped automatically.
      * See_Also: value
      */
-    @safe final string localizedValue(string key, string locale) const nothrow {
+    @safe final string localizedValue(string key, string locale, bool nonLocaleFallback = true) const nothrow {
         //Any ideas how to get rid of this boilerplate and make less allocations?
         const t = parseLocaleName(locale);
         auto lang = t.lang;
@@ -239,7 +248,11 @@ public:
             }
         }
         
-        return value(key);
+        if (nonLocaleFallback) {
+            return value(key);
+        } else {
+            return null;
+        }
     }
     
     ///
@@ -266,12 +279,14 @@ public:
         assert(group.localizedValue("Name", "de_DE@dialect") == "Programmierer");
         assert(group.localizedValue("Name", "fr_FR.UTF-8") == "Programmeur");
         assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
+        assert(group.localizedValue("GenericName", "fr_FR") == "Program");
+        assert(group.localizedValue("GenericName", "fr_FR", false) is null);
     }
     
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
-     * Throws: IniLikeEntryException if key or value is not valid.
+     * Throws: IniLikeEntryException if key or value is not valid or value needs to be escaped.
      * See_Also: writeEntry
      */
     @safe final void setLocalizedValue(string key, string locale, string value) {
@@ -759,12 +774,34 @@ public:
         return _fileName;
     }
     
+    /**
+     * Leading comments.
+     * Returns: Range of leading comments (before any group)
+     */
     @nogc @trusted final auto leadingComments() const nothrow {
         return _leadingComments;
     }
     
+    /**
+     * Add leading comment. This will be appended to the list of leadingComments.
+     * Note: # will be prepended automatically if line is not empty and does not have # at the start.
+     */
     @trusted void addLeadingComment(string line) nothrow {
+        if (!line.isComment && !line.empty) {
+            line = '#' ~ line;
+        }
         _leadingComments ~= line;
+    }
+    
+    /**
+     * Prepend leading comment (e.g. for setting shebang line).
+     * Note: # will be prepended automatically if line is not empty and does not have # at the start.
+     */
+    @trusted void prependLeadingComment(string line) nothrow {
+        if (!line.isComment && !line.empty) {
+            line = '#' ~ line;
+        }
+        _leadingComments = line ~ _leadingComments;
     }
     
 private:
@@ -938,5 +975,11 @@ Valid=Key`;
     shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid comment should throw");
     assert(shouldThrow.lineNumber == 2);
+    
+    ilf = new IniLikeFile();
+    ilf.addLeadingComment("First");
+    ilf.addLeadingComment("#Second");
+    ilf.prependLeadingComment("Shebang");
+    assert(ilf.leadingComments().equal(["#Shebang", "#First", "#Second"]));
 }
 
