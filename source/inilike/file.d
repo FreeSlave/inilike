@@ -35,14 +35,14 @@ struct IniLikeLine
     /**
      * Contruct from comment.
      */
-    @nogc @safe static IniLikeLine fromComment(string comment) nothrow {
+    @nogc @safe static IniLikeLine fromComment(string comment) nothrow pure {
         return IniLikeLine(comment, null, Type.Comment);
     }
     
     /**
      * Construct from key and value.
      */
-    @nogc @safe static IniLikeLine fromKeyValue(string key, string value) nothrow {
+    @nogc @safe static IniLikeLine fromKeyValue(string key, string value) nothrow pure {
         return IniLikeLine(key, value, Type.KeyValue);
     }
     
@@ -50,7 +50,7 @@ struct IniLikeLine
      * Get comment.
      * Returns: Comment or empty string if type is not Type.Comment.
      */
-    @nogc @safe string comment() const nothrow {
+    @nogc @safe string comment() const nothrow pure {
         return _type == Type.Comment ? _first : null;
     }
     
@@ -58,7 +58,7 @@ struct IniLikeLine
      * Get key.
      * Returns: Key or empty string if type is not Type.KeyValue
      */
-    @nogc @safe string key() const nothrow {
+    @nogc @safe string key() const nothrow pure {
         return _type == Type.KeyValue ? _first : null;
     }
     
@@ -66,21 +66,21 @@ struct IniLikeLine
      * Get value.
      * Returns: Value or empty string if type is not Type.KeyValue
      */
-    @nogc @safe string value() const nothrow {
+    @nogc @safe string value() const nothrow pure {
         return _type == Type.KeyValue ? _second : null;
     }
     
     /**
      * Get type of line.
      */
-    @nogc @safe Type type() const nothrow {
+    @nogc @safe Type type() const nothrow pure {
         return _type;
     }
     
     /**
      * Assign Type.None to line.
      */
-    @nogc @safe void makeNone() nothrow {
+    @nogc @safe void makeNone() nothrow pure {
         _type = Type.None;
     }
 private:
@@ -111,14 +111,14 @@ public:
      * Warning: It's an error to access nonexistent value.
      * See_Also: value
      */
-    @nogc @safe final string opIndex(string key) const nothrow {
+    @nogc @safe final string opIndex(string key) const nothrow pure {
         auto i = key in _indices;
         assert(_values[*i].type == IniLikeLine.Type.KeyValue);
         assert(_values[*i].key == key);
         return _values[*i].value;
     }
     
-    private @safe final string setKeyValueImpl(string key, string value) nothrow 
+    private @safe final string setKeyValueImpl(string key, string value) nothrow pure
     in {
         assert(!value.needEscaping);
     }
@@ -160,7 +160,7 @@ public:
     /**
      * Tell if group contains value associated with the key.
      */
-    @nogc @safe final bool contains(string key) const nothrow {
+    @nogc @safe final bool contains(string key) const nothrow pure {
         return value(key) !is null;
     }
     
@@ -170,7 +170,7 @@ public:
      * Note: The value is not unescaped automatically.
      * See_Also: readEntry, localizedValue
      */
-    @nogc @safe final string value(string key, string defaultValue = null) const nothrow {
+    @nogc @safe final string value(string key, string defaultValue = null) const nothrow pure {
         auto pick = key in _indices;
         if (pick) {
             if(_values[*pick].type == IniLikeLine.Type.KeyValue) {
@@ -186,7 +186,7 @@ public:
      * Returns: The unescaped value associated with key or null if not found.
      * See_Also: value
      */
-    @safe final string readEntry(string key, string locale = null) const nothrow {
+    @safe final string readEntry(string key, string locale = null) const nothrow pure {
         if (locale.length) {
             return localizedValue(key, locale).unescapeValue();
         } else {
@@ -215,7 +215,7 @@ public:
      * Note: The value is not unescaped automatically.
      * See_Also: value
      */
-    @safe final string localizedValue(string key, string locale, bool nonLocaleFallback = true) const nothrow {
+    @safe final string localizedValue(string key, string locale, bool nonLocaleFallback = true) const nothrow pure {
         //Any ideas how to get rid of this boilerplate and make less allocations?
         const t = parseLocaleName(locale);
         auto lang = t.lang;
@@ -296,7 +296,7 @@ public:
     /**
      * Removes entry by key.
      */
-    @safe final void removeEntry(string key) nothrow {
+    @safe final void removeEntry(string key) nothrow pure {
         auto pick = key in _indices;
         if (pick) {
             _values[*pick].makeNone();
@@ -304,7 +304,7 @@ public:
     }
     
     ///ditto, but remove entry by localized key
-    @safe final void removeEntry(string key, string locale) nothrow {
+    @safe final void removeEntry(string key, string locale) nothrow pure {
         removeEntry(localizedKey(key, locale));
     }
     
@@ -398,7 +398,7 @@ Key3=Value3`;
      * Get name of this group.
      * Returns: The name of this group.
      */
-    @nogc @safe final string name() const nothrow {
+    @nogc @safe final string name() const nothrow pure {
         return _name;
     }
     
@@ -413,7 +413,7 @@ Key3=Value3`;
      * Add comment line into the group.
      * See_Also: byIniLine
      */
-    @trusted final void addComment(string comment) nothrow {
+    @trusted final void addComment(string comment) nothrow pure {
         _values ~= IniLikeLine.fromComment(comment);
     }
     
@@ -668,7 +668,7 @@ public:
      * Returns: IniLikeGroup instance associated with groupName or $(B null) if not found.
      * See_Also: byGroup
      */
-    @nogc @safe final inout(IniLikeGroup) group(string groupName) nothrow inout {
+    @nogc @safe final inout(IniLikeGroup) group(string groupName) nothrow inout pure {
         auto pick = groupName in _groupIndices;
         if (pick) {
             return _groups[*pick];
@@ -770,7 +770,7 @@ public:
      * File path where the object was loaded from.
      * Returns: File name as was specified on the object creation.
      */
-    @nogc @safe final string fileName() nothrow const {
+    @nogc @safe final string fileName() nothrow const pure {
         return _fileName;
     }
     
@@ -778,7 +778,7 @@ public:
      * Leading comments.
      * Returns: Range of leading comments (before any group)
      */
-    @nogc @trusted final auto leadingComments() const nothrow {
+    @nogc @trusted final auto leadingComments() const nothrow pure {
         return _leadingComments;
     }
     
