@@ -18,7 +18,7 @@ import inilike.common;
 /**
  * Object for iterating through ini-like file entries.
  */
-struct IniLikeReader(Range) if (isInputRange!Range && is(ElementType!Range : const(char[])))
+struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!Range) && is(ElementEncodingType!(ElementType!Range) : char))
 {
     /**
      * Construct from other range of strings.
@@ -203,7 +203,7 @@ KeyValue6`;
  * Note: on frontends < 2.067 it uses splitLines thereby allocates strings.
  * See_Also: iniLikeRangeReader, iniLikeFileReader
  */
-@trusted auto iniLikeStringReader(String)(String contents) if (is(String : const(char)[]))
+@trusted auto iniLikeStringReader(String)(String contents) if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     static if( __VERSION__ < 2067 ) {
         return iniLikeRangeReader(contents.splitLines());

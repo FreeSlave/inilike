@@ -312,7 +312,7 @@ public:
      * Remove all entries satisying ToDelete function. 
      * ToDelete should be function accepting string key and value and return boolean.
      */
-    @trusted final void removeEntries(alias ToDelete)()
+    final void removeEntries(alias ToDelete)()
     {
         IniLikeLine[] values;
         
@@ -405,7 +405,7 @@ Key3=Value3`;
     /**
      * Returns: Range of $(B IniLikeLine)s included in this group.
      */
-    @system final auto byIniLine() const {
+    @trusted final auto byIniLine() const {
         return _values.filter!(v => v.type != IniLikeLine.Type.None);
     }
     
@@ -413,7 +413,7 @@ Key3=Value3`;
      * Add comment line into the group.
      * See_Also: byIniLine
      */
-    @trusted final void addComment(string comment) nothrow pure {
+    @safe final void addComment(string comment) nothrow pure {
         _values ~= IniLikeLine.fromComment(comment);
     }
     
@@ -593,17 +593,17 @@ public:
      *  $(B ErrnoException) if file could not be opened.
      *  $(B IniLikeException) if error occured while reading the file.
      */
-    @safe this(string fileName) {
+    @trusted this(string fileName) {
         this(iniLikeFileReader(fileName), fileName);
     }
     
     /**
-     * Read from range of $(B IniLikeLine)s.
+     * Read from range of inilike.range.IniLikeReader.
      * Note: All exceptions thrown within constructor are turning into IniLikeException.
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
-    @trusted this(IniLikeReader)(IniLikeReader reader, string fileName = null)
+    this(IniLikeReader)(IniLikeReader reader, string fileName = null)
     {
         size_t lineNumber = 0;
         IniLikeGroup currentGroup;
@@ -738,7 +738,7 @@ public:
      * Returns: A string that represents the contents of file.
      * See_Also: saveToFile, save
      */
-    @safe final string saveToString() const {
+    @trusted final string saveToString() const {
         auto a = appender!(string[])();
         save(a);
         return a.data.join("\n");
@@ -749,7 +749,7 @@ public:
      * Those strings can be written to the file or be showed in text area.
      * Note: returned strings don't have trailing newline character.
      */
-    @trusted final void save(OutRange)(OutRange sink) const if (isOutputRange!(OutRange, string)) {
+    final void save(OutRange)(OutRange sink) const if (isOutputRange!(OutRange, string)) {
         foreach(line; leadingComments()) {
             put(sink, line);
         }
@@ -778,7 +778,7 @@ public:
      * Leading comments.
      * Returns: Range of leading comments (before any group)
      */
-    @nogc @trusted final auto leadingComments() const nothrow pure {
+    @nogc @safe final auto leadingComments() const nothrow pure {
         return _leadingComments;
     }
     
@@ -786,8 +786,8 @@ public:
      * Add leading comment. This will be appended to the list of leadingComments.
      * Note: # will be prepended automatically if line is not empty and does not have # at the start.
      */
-    @trusted void addLeadingComment(string line) nothrow {
-        if (!line.isComment && !line.empty) {
+    @safe void addLeadingComment(string line) nothrow {
+        if (!line.isComment && line.length) {
             line = '#' ~ line;
         }
         _leadingComments ~= line;
@@ -797,8 +797,8 @@ public:
      * Prepend leading comment (e.g. for setting shebang line).
      * Note: # will be prepended automatically if line is not empty and does not have # at the start.
      */
-    @trusted void prependLeadingComment(string line) nothrow {
-        if (!line.isComment && !line.empty) {
+    @safe void prependLeadingComment(string line) nothrow {
+        if (!line.isComment && line.length) {
             line = '#' ~ line;
         }
         _leadingComments = line ~ _leadingComments;

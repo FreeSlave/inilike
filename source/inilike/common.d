@@ -29,7 +29,7 @@ package {
     }
 }
 
-private @nogc @trusted auto stripLeftChar(inout(char)[] s) pure nothrow
+private @nogc @safe auto stripLeftChar(inout(char)[] s) pure nothrow
 {
     size_t spaceNum = 0;
     while(spaceNum < s.length) {
@@ -43,7 +43,7 @@ private @nogc @trusted auto stripLeftChar(inout(char)[] s) pure nothrow
     return s[spaceNum..$];
 }
 
-private @nogc @trusted auto stripRightChar(inout(char)[] s) pure nothrow
+private @nogc @safe auto stripRightChar(inout(char)[] s) pure nothrow
 {
     size_t spaceNum = 0;
     while(spaceNum < s.length) {
@@ -62,7 +62,7 @@ private @nogc @trusted auto stripRightChar(inout(char)[] s) pure nothrow
 /**
  * Test whether the string s represents a comment.
  */
-@nogc @trusted bool isComment(const(char)[] s) pure nothrow
+@nogc @safe bool isComment(const(char)[] s) pure nothrow
 {
     s = s.stripLeftChar;
     return !s.empty && s[0] == '#';
@@ -81,7 +81,7 @@ unittest
  * Test whether the string s represents a group header.
  * Note: "[]" is not considered as valid group header.
  */
-@nogc @trusted bool isGroupHeader(const(char)[] s) pure nothrow
+@nogc @safe bool isGroupHeader(const(char)[] s) pure nothrow
 {
     s = s.stripRightChar;
     return s.length > 2 && s[0] == '[' && s[$-1] == ']';
@@ -102,7 +102,7 @@ unittest
  * Returns: group name or empty string if the entry is not group header.
  */
 
-@nogc @trusted auto parseGroupHeader(inout(char)[] s) pure nothrow
+@nogc @safe auto parseGroupHeader(inout(char)[] s) pure nothrow
 {
     s = s.stripRightChar;
     if (isGroupHeader(s)) {
@@ -127,7 +127,7 @@ unittest
  * Note: this function does not check whether parsed key is valid key.
  * See_Also: isValidKey
  */
-@nogc @trusted auto parseKeyValue(String)(String s) pure nothrow if (is(String : const(char)[]))
+@nogc @trusted auto parseKeyValue(String)(String s) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     auto t = s.findSplit("=");
     auto key = t[0];
@@ -155,10 +155,10 @@ unittest
 * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html, Basic format of the file)
 * Note: this function automatically separate key from locale. It does not check validity of the locale itself.
 */
-@nogc @safe bool isValidKey(String)(String key) pure nothrow if (is(String : const(char)[])) {
+@nogc @safe bool isValidKey(String)(String key) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char)) {
     key = separateFromLocale(key)[0];
     
-    @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
+    @nogc @safe static bool isValidKeyChar(ElementType!String c) pure nothrow {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
     }
     
@@ -240,7 +240,7 @@ unittest
     String lang, String country = null, 
     String encoding = null, 
     String modifier = null) pure
-if (is(String : const(char)[]))
+if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     return lang ~ (country.length ? "_".to!String~country : String.init)
                 ~ (encoding.length ? ".".to!String~encoding : String.init)
@@ -263,7 +263,7 @@ unittest
  * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
  * See_Also: makeLocaleName
  */
-@nogc @trusted auto parseLocaleName(String)(String locale) pure nothrow if (is(String : const(char)[]))
+@nogc @trusted auto parseLocaleName(String)(String locale) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     auto modifiderSplit = findSplit(locale, "@");
     auto modifier = modifiderSplit[2];
@@ -295,7 +295,7 @@ unittest
  * Drop encoding part from locale (it's not used in constructing localized keys).
  * Returns: Locale string with encoding part dropped out or original string if encoding was not present.
  */
-@safe String dropEncodingPart(String)(String locale) pure nothrow if (is(String : const(char)[]))
+@safe String dropEncodingPart(String)(String locale) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     auto t = parseLocaleName(locale);
     if (!t.encoding.empty) {
@@ -317,7 +317,7 @@ unittest
  * Returns: localized key in form key[locale] dropping encoding out if present.
  * See_Also: separateFromLocale
  */
-@safe String localizedKey(String)(String key, String locale) pure nothrow if (is(String : const(char)[]))
+@safe String localizedKey(String)(String key, String locale) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     if (locale.empty) {
         return key;
@@ -337,7 +337,7 @@ unittest
 /**
  * ditto, but constructs locale name from arguments.
  */
-@safe String localizedKey(String)(String key, String lang, String country, String modifier = null) pure
+@safe String localizedKey(String)(String key, String lang, String country, String modifier = null) pure if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     return key ~ "[".to!String ~ makeLocaleName(lang, country, String.init, modifier) ~ "]".to!String;
 }
@@ -355,7 +355,7 @@ unittest
  * Returns: tuple of key and locale name.
  * See_Also: localizedKey
  */
-@nogc @trusted auto separateFromLocale(String)(String key) pure nothrow if (is(String : const(char)[])) {
+@nogc @trusted auto separateFromLocale(String)(String key) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char)) {
     if (key.endsWith("]")) {
         auto t = key.findSplit("[");
         if (t[1].length) {
@@ -390,6 +390,7 @@ unittest
     String locale, 
     String firstLocale,  String firstValue, 
     String secondLocale, String secondValue) pure nothrow
+    if (isSomeString!String && is(ElementEncodingType!String : char))
 {   
     const lt = parseLocaleName(locale);
     const lt1 = parseLocaleName(firstLocale);
@@ -444,10 +445,10 @@ unittest
  * Check if value needs to be escaped. This function is currently tolerant to single slashes and tabs.
  * Returns: true if value needs to escaped, false otherwise.
  */
-@nogc @safe bool needEscaping(string value) nothrow pure
+@nogc @safe bool needEscaping(String)(String value) nothrow pure if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     for (size_t i=0; i<value.length; ++i) {
-        char c = value[i];
+        auto c = value[i];
         if (c == '\n' || c == '\r') {
             return true;
         }
@@ -470,7 +471,7 @@ unittest
  * Returns: Escaped string.
  * See_Also: unescapeValue
  */
-@trusted String escapeValue(String)(String value) pure if (is(String : const(char)[])) {
+@trusted String escapeValue(String)(String value) pure if (isSomeString!String && is(ElementEncodingType!String : char)) {
     return value.replace("\\", `\\`.to!String).replace("\n", `\n`.to!String).replace("\r", `\r`.to!String).replace("\t", `\t`.to!String);
 }
 
@@ -533,7 +534,7 @@ unittest
  * Returns: Unescaped string.
  * See_Also: escapeValue
  */
-@trusted auto unescapeValue(inout(char)[] value) nothrow pure
+@safe inout(char)[] unescapeValue(inout(char)[] value) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
        tuple('s', ' '),
