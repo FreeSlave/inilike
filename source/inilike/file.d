@@ -199,9 +199,10 @@ public:
      * Throws: IniLikeEntryException if key or value is not valid.
      */
     @safe final string writeEntry(string key, string value, string locale = null) {
+        value = value.escapeValue();
         validateKeyValue(key, value);
         string keyName = localizedKey(key, locale);
-        return setKeyValueImpl(keyName, value.escapeValue());
+        return setKeyValueImpl(keyName, value);
     }
     
     /**
@@ -421,12 +422,15 @@ protected:
     /**
      * Validate key and value before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes. 
-     * Default implementation check if key is not empty string, leaving value unchecked.
+     * Default implementation check if key is not empty string and does not contain new line or carriage return characters, leaving value unchecked.
      * Throws: IniLikeEntryException if either key or value is invalid.
      */
     @trusted void validateKeyValue(string key, string value) const {
         if (!key.length) {
             throw new IniLikeEntryException("key must not be empty", key, value);
+        }
+        if (key.needEscaping()) {
+            throw new IniLikeEntryException("key must not contain new line characters", key, value);
         }
     }
     
@@ -921,6 +925,10 @@ Comment=Manage files
     assert(entryException !is null);
     assert(entryException.key == "Key");
     assert(entryException.value == "New\nline");
+    entryException = collectException!IniLikeEntryException(ilf.group("Another Group")["New\nLine"] = "Value");
+    assert(entryException !is null);
+    assert(entryException.key == "New\nLine");
+    assert(entryException.value == "Value");
     
     const IniLikeFile cilf = ilf;
     static assert(is(typeof(cilf.byGroup())));
