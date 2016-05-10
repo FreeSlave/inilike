@@ -9,6 +9,5 @@
     
     "targetName" : "inilike",
     "targetPath" : "lib", 
-    "targetType" : "library",
-    "subPackages" : ["./examples/derived"]
+    "targetType" : "library"
 }
