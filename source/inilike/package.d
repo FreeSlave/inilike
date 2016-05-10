@@ -153,7 +153,8 @@ Key=Value
 # Comment in group`;
 
     auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions);
-    df.removeGroup("Desktop Entry");
+    assert(!df.removeGroup("Desktop Entry"));
+    assert(!df.removeGroup("NonExistent"));
     assert(df.group("Desktop Entry") !is null);
     assert(df.desktopEntry() !is null);
     assert(df.leadingComments().empty);
@@ -216,4 +217,13 @@ Name=Name2`;
     assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreGroupDuplicates));
     
     assert(df.desktopEntry().value("Name") == "Name1");
+    
+    contents = 
+`[Desktop Entry]
+Name=Name1
+[X-Extension]
+Name=Name2`;
+
+    df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.skipExtensionGroups);
+    assert(df.group("X-Extension") is null);
 }
