@@ -143,7 +143,7 @@ public:
     @safe final string opIndexAssign(string value, string key) {
         validateKeyValue(key, value);
         if (value.needEscaping()) {
-            throw new IniLikeEntryException("The value needs to be escaped", key, value);
+            throw new IniLikeEntryException("The value needs to be escaped", _name, key, value);
         }
         return setKeyValueImpl(key, value);
     }
@@ -295,13 +295,16 @@ public:
     }
     
     /**
-     * Removes entry by key.
+     * Removes entry by key. Do nothing if not value associated with key found.
+     * Returns: true if entry was removed, false otherwise.
      */
-    @safe final void removeEntry(string key) nothrow pure {
+    @safe final bool removeEntry(string key) nothrow pure {
         auto pick = key in _indices;
         if (pick) {
             _values[*pick].makeNone();
+            return true;
         }
+        return false;
     }
     
     ///ditto, but remove entry by localized key
@@ -349,7 +352,8 @@ Key2=Value2
 NameGeneric=Value
 Key3=Value3`;
         auto ilf = new IniLikeFile(iniLikeStringReader(contents));
-        ilf.group("Group").removeEntry("ToRemove");
+        assert(ilf.group("Group").removeEntry("ToRemove"));
+        assert(!ilf.group("Group").removeEntry("NonExistent"));
         ilf.group("Group").removeEntries!(function bool(string key, string value) {
             return key.startsWith("Name");
         })();
@@ -422,16 +426,55 @@ protected:
     /**
      * Validate key and value before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes. 
-     * Default implementation check if key is not empty string and does not contain new line or carriage return characters, leaving value unchecked.
+     * Default implementation check if key is not empty string, does not look like comment and does not contain new line or carriage return characters. Value is left unchecked.
+     * Params:
+     *  key = key to validate.
+     *  value = value to validate. Considered to be escaped.
      * Throws: IniLikeEntryException if either key or value is invalid.
      */
     @trusted void validateKeyValue(string key, string value) const {
-        if (!key.length) {
-            throw new IniLikeEntryException("key must not be empty", key, value);
+        if (key.empty || key.strip.empty) {
+            throw new IniLikeEntryException("key must not be empty", _name, key, value);
+        }
+        if (key.isComment()) {
+            throw new IniLikeEntryException("key must not start with #", _name, key, value);
         }
         if (key.needEscaping()) {
-            throw new IniLikeEntryException("key must not contain new line characters", key, value);
+            throw new IniLikeEntryException("key must not contain new line characters", _name, key, value);
         }
+    }
+    
+    ///
+    unittest
+    {
+        auto ilf = new IniLikeFile();
+        ilf.addGroup("Group");
+        
+        auto entryException = collectException!IniLikeEntryException(ilf.group("Group")[""] = "Value1");
+        assert(entryException !is null);
+        assert(entryException.groupName == "Group");
+        assert(entryException.key == "");
+        assert(entryException.value == "Value1");
+        
+        entryException = collectException!IniLikeEntryException(ilf.group("Group")["    "] = "Value2");
+        assert(entryException !is null);
+        assert(entryException.key == "    ");
+        assert(entryException.value == "Value2");
+        
+        entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
+        assert(entryException !is null);
+        assert(entryException.key == "Key");
+        assert(entryException.value == "New\nline");
+        
+        entryException = collectException!IniLikeEntryException(ilf.group("Group")["New\nLine"] = "Value3");
+        assert(entryException !is null);
+        assert(entryException.key == "New\nLine");
+        assert(entryException.value == "Value3");
+        
+        entryException = collectException!IniLikeEntryException(ilf.group("Group")["# Comment"] = "Value4");
+        assert(entryException !is null);
+        assert(entryException.key == "# Comment");
+        assert(entryException.value == "Value4");
     }
     
 private:
@@ -440,18 +483,26 @@ private:
     string _name;
 }
 
+class IniLikeException : Exception
+{
+    this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+        super(msg, file, line, next);
+    }
+}
+
 /**
  * Exception thrown on the file read error.
  */
-class IniLikeException : Exception
+class IniLikeReadException : IniLikeException
 {
     /**
-     * Create IniLikeException with msg, lineNumber and fileName.
+     * Create IniLikeReadException with msg, lineNumber and fileName.
      */
-    this(string msg, size_t lineNumber, string fileName = null, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+    this(string msg, size_t lineNumber, string fileName = null, IniLikeEntryException entryException = null, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
         super(msg, file, line, next);
         _lineNumber = lineNumber;
         _fileName = fileName;
+        _entryException = entryException;
     }
     
     /** 
@@ -480,18 +531,29 @@ class IniLikeException : Exception
         return _fileName;
     }
     
+    /**
+     * Original IniLikeEntryException which caused this error.
+     * This will have the same msg.
+     * Returns: IniLikeEntryException object or null if the cause of error was something else.
+     */
+    @nogc @safe IniLikeEntryException entryException() nothrow pure {
+        return _entryException;
+    }
+    
 private:
     size_t _lineNumber;
     string _fileName;
+    IniLikeEntryException _entryException;
 }
 
 /**
  * Exception thrown when trying to set invalid key or value.
  */
-class IniLikeEntryException : Exception
+class IniLikeEntryException : IniLikeException
 {
-    this(string msg, string key, string value, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+    this(string msg, string group, string key, string value, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
         super(msg, file, line, next);
+        _group = group;
         _key = key;
         _value = value;
     }
@@ -510,7 +572,15 @@ class IniLikeEntryException : Exception
         return _value;
     }
     
+    /**
+     * Name of group where error occured.
+     */
+    @nogc @safe string groupName() const nothrow pure {
+        return _group;
+    }
+    
 private:
+    string _group;
     string _key;
     string _value;
 }
@@ -566,13 +636,15 @@ protected:
      * Reimplemented method also is allowd to return null.
      * Default implementation just returns empty IniLikeGroup with name set to groupName.
      * Throws:
-     *  $(B Exception) if group with such name already exists.
+     *  IniLikeException if group with such name already exists.
      * See_Also:
      *  addKeyValueForGroup, addCommentForGroup
      */
     @trusted IniLikeGroup createGroup(string groupName)
     {
-        enforce(group(groupName) is null, "group already exists");
+        if (group(groupName) !is null) {
+            throw new IniLikeException("group already exists");
+        }
         return createEmptyGroup(groupName);
     }
     
@@ -595,7 +667,7 @@ public:
      * Read from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
-     *  $(B IniLikeException) if error occured while reading the file.
+     *  $(B IniLikeReadException) if error occured while reading the file.
      */
     @trusted this(string fileName) {
         this(iniLikeFileReader(fileName), fileName);
@@ -603,9 +675,9 @@ public:
     
     /**
      * Read from range of inilike.range.IniLikeReader.
-     * Note: All exceptions thrown within constructor are turning into IniLikeException.
+     * Note: All exceptions thrown within constructor are turning into IniLikeReadException.
      * Throws:
-     *  $(B IniLikeException) if error occured while parsing.
+     *  $(B IniLikeReadException) if error occured while parsing.
      */
     this(IniLikeReader)(IniLikeReader reader, string fileName = null)
     {
@@ -623,7 +695,7 @@ public:
                 if (line.isComment || line.strip.empty) {
                     addLeadingComment(line);
                 } else {
-                    throw new Exception("Expected comment or empty line before any group");
+                    throw new IniLikeException("Expected comment or empty line before any group");
                 }
             }
             
@@ -651,7 +723,7 @@ public:
                         string value = t.value.stripLeft;
                         
                         if (key.length == 0 && value.length == 0) {
-                            throw new Exception("Expected comment, empty line or key value inside group");
+                            throw new IniLikeException("Expected comment, empty line or key value inside group");
                         } else {
                             addKeyValueForGroup(key, value, currentGroup, groupName);
                         }
@@ -662,8 +734,11 @@ public:
             _fileName = fileName;
             
         }
+        catch(IniLikeEntryException e) {
+            throw new IniLikeReadException(e.msg, lineNumber, fileName, e, e.file, e.line, e.next);
+        }
         catch (Exception e) {
-            throw new IniLikeException(e.msg, lineNumber, fileName, e.file, e.line, e.next);
+            throw new IniLikeReadException(e.msg, lineNumber, fileName, null, e.file, e.line, e.next);
         }
     }
     
@@ -683,11 +758,13 @@ public:
     /**
      * Create new group using groupName.
      * Returns: Newly created instance of IniLikeGroup.
-     * Throws: Exception if group with such name already exists or groupName is empty.
+     * Throws: IniLikeException if group with such name already exists or groupName is empty.
      * See_Also: removeGroup, group
      */
     @safe final IniLikeGroup addGroup(string groupName) {
-        enforce(groupName.length, "empty group name");
+        if (groupName.length == 0) {
+            throw new IniLikeException("empty group name");
+        }
         
         auto iniLikeGroup = createGroup(groupName);
         if (iniLikeGroup !is null) {
@@ -698,13 +775,17 @@ public:
     }
     
     /**
-     * Remove group by name.
+     * Remove group by name. Do nothing if group with such name does not exist.
+     * Returns: true if group was deleted, false otherwise.
      * See_Also: addGroup, group
      */
-    @safe void removeGroup(string groupName) nothrow {
+    @safe bool removeGroup(string groupName) nothrow {
         auto pick = groupName in _groupIndices;
         if (pick) {
             _groups[*pick] = null;
+            return true;
+        } else {
+            return false;
         }
     }
     
@@ -781,14 +862,26 @@ public:
     /**
      * Leading comments.
      * Returns: Range of leading comments (before any group)
+     * See_Also: addLeadingComment, prependLeadingComment
      */
     @nogc @safe final auto leadingComments() const nothrow pure {
         return _leadingComments;
     }
     
+    ///
+    unittest
+    {
+        auto ilf = new IniLikeFile();
+        ilf.addLeadingComment("First");
+        ilf.addLeadingComment("#Second");
+        ilf.prependLeadingComment("Shebang");
+        assert(ilf.leadingComments().equal(["#Shebang", "#First", "#Second"]));
+    }
+    
     /**
      * Add leading comment. This will be appended to the list of leadingComments.
      * Note: # will be prepended automatically if line is not empty and does not have # at the start.
+     * See_Also: leadingComments, prependLeadingComment
      */
     @safe void addLeadingComment(string line) nothrow {
         if (!line.isComment && line.length) {
@@ -800,6 +893,7 @@ public:
     /**
      * Prepend leading comment (e.g. for setting shebang line).
      * Note: # will be prepended automatically if line is not empty and does not have # at the start.
+     * See_Also: leadingComments, addLeadingComment
      */
     @safe void prependLeadingComment(string line) nothrow {
         if (!line.isComment && line.length) {
@@ -844,7 +938,7 @@ Comment=Manage files
     
     string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
     try {
-        assertNotThrown!IniLikeException(ilf.saveToFile(tempFile));
+        assertNotThrown!IniLikeReadException(ilf.saveToFile(tempFile));
         auto fileContents = cast(string)std.file.read(tempFile);
         static if( __VERSION__ < 2067 ) {
             assert(equal(fileContents.splitLines, contents.splitLines), "Contents should be preserved as is");
@@ -853,7 +947,7 @@ Comment=Manage files
         }
         
         IniLikeFile filf; 
-        assertNotThrown!IniLikeException(filf = new IniLikeFile(tempFile));
+        assertNotThrown!IniLikeReadException(filf = new IniLikeFile(tempFile));
         assert(filf.fileName() == tempFile);
         remove(tempFile);
     } catch(Exception e) {
@@ -905,7 +999,9 @@ Comment=Manage files
     
     assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group"]));
     
-    ilf.removeGroup("Another Group");
+    assert(!ilf.removeGroup("NonExistent Group"));
+    
+    assert(ilf.removeGroup("Another Group"));
     assert(!ilf.group("Another Group"));
     assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry"]));
     
@@ -916,19 +1012,6 @@ Comment=Manage files
     
     ilf.addGroup("Other Group");
     assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group", "Other Group"]));
-    
-    auto entryException = collectException!IniLikeEntryException(ilf.group("Another Group")[""] = "Value");
-    assert(entryException !is null);
-    assert(entryException.key == "");
-    assert(entryException.value == "Value");
-    entryException = collectException!IniLikeEntryException(ilf.group("Another Group")["Key"] = "New\nline");
-    assert(entryException !is null);
-    assert(entryException.key == "Key");
-    assert(entryException.value == "New\nline");
-    entryException = collectException!IniLikeEntryException(ilf.group("Another Group")["New\nLine"] = "Value");
-    assert(entryException !is null);
-    assert(entryException.key == "New\nLine");
-    assert(entryException.value == "Value");
     
     const IniLikeFile cilf = ilf;
     static assert(is(typeof(cilf.byGroup())));
@@ -941,7 +1024,7 @@ GenericName=File manager
 [Group]
 GenericName=Commander`;
 
-    auto shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents), "config.ini"));
+    auto shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents), "config.ini"));
     assert(shouldThrow !is null, "Duplicate groups should throw");
     assert(shouldThrow.lineNumber == 3);
     assert(shouldThrow.lineIndex == 2);
@@ -952,7 +1035,7 @@ GenericName=Commander`;
 Key=Value1
 Key=Value2`;
 
-    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
+    shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Duplicate key should throw");
     assert(shouldThrow.lineNumber == 3);
     
@@ -961,7 +1044,7 @@ Key=Value2`;
 Key=Value
 =File manager`;
 
-    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
+    shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Empty key should throw");
     assert(shouldThrow.lineNumber == 3);
     
@@ -971,7 +1054,7 @@ Key=Value
 Valid=Key
 NotKeyNotGroupNotComment`;
 
-    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
+    shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid entry should throw");
     assert(shouldThrow.lineNumber == 4);
     
@@ -980,14 +1063,7 @@ NotKeyNotGroupNotComment`;
 NotComment
 [Group]
 Valid=Key`;
-    shouldThrow = collectException!IniLikeException(new IniLikeFile(iniLikeStringReader(contents)));
+    shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid comment should throw");
     assert(shouldThrow.lineNumber == 2);
-    
-    ilf = new IniLikeFile();
-    ilf.addLeadingComment("First");
-    ilf.addLeadingComment("#Second");
-    ilf.prependLeadingComment("Shebang");
-    assert(ilf.leadingComments().equal(["#Shebang", "#First", "#Second"]));
 }
-

@@ -39,6 +39,6 @@ Inilike library has support for lookup of localized values, using the algorithm 
 
 ## Subclassing IniLikeFile
 
-IniLikeFile is the base class for file of ini-like format. To change its functionality it's needed to be subclassed. 
-See [example](examples/derived/source/app.d) showing which functions can be overridden.
+IniLikeFile is the base class for file of ini-like format. To change its functionality (validation and other behavior) it needs to be subclassed. 
+See [example](source/inilike/package.d) in unittests that shows which functions can be overridden.
 

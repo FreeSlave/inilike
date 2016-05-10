@@ -29,7 +29,7 @@ package {
     }
 }
 
-private @nogc @safe auto stripLeftChar(inout(char)[] s) pure nothrow
+private @nogc @safe auto simpleStripLeft(inout(char)[] s) pure nothrow
 {
     size_t spaceNum = 0;
     while(spaceNum < s.length) {
@@ -43,7 +43,7 @@ private @nogc @safe auto stripLeftChar(inout(char)[] s) pure nothrow
     return s[spaceNum..$];
 }
 
-private @nogc @safe auto stripRightChar(inout(char)[] s) pure nothrow
+private @nogc @safe auto simpleStripRight(inout(char)[] s) pure nothrow
 {
     size_t spaceNum = 0;
     while(spaceNum < s.length) {
@@ -64,7 +64,7 @@ private @nogc @safe auto stripRightChar(inout(char)[] s) pure nothrow
  */
 @nogc @safe bool isComment(const(char)[] s) pure nothrow
 {
-    s = s.stripLeftChar;
+    s = s.simpleStripLeft;
     return !s.empty && s[0] == '#';
 }
 
@@ -83,7 +83,7 @@ unittest
  */
 @nogc @safe bool isGroupHeader(const(char)[] s) pure nothrow
 {
-    s = s.stripRightChar;
+    s = s.simpleStripRight;
     return s.length > 2 && s[0] == '[' && s[$-1] == ']';
 }
 
@@ -104,7 +104,7 @@ unittest
 
 @nogc @safe auto parseGroupHeader(inout(char)[] s) pure nothrow
 {
-    s = s.stripRightChar;
+    s = s.simpleStripRight;
     if (isGroupHeader(s)) {
         return s[1..$-1];
     } else {
@@ -125,7 +125,6 @@ unittest
  * Parse entry of kind Key=Value into pair of Key and Value.
  * Returns: tuple of key and value strings or tuple of empty strings if it's is not a key-value entry.
  * Note: this function does not check whether parsed key is valid key.
- * See_Also: isValidKey
  */
 @nogc @trusted auto parseKeyValue(String)(String s) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char))
 {
@@ -151,7 +150,7 @@ unittest
 }
 
 /**
-* Test whether the string is valid key. 
+* Test whether the string is valid key in terms of Desktop File Specification. Not actually used in inilike.file.IniLikeFile, but can be used in derivatives.
 * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html, Basic format of the file)
 * Note: this function automatically separate key from locale. It does not check validity of the locale itself.
 */
