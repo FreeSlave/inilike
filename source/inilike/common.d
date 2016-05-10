@@ -232,6 +232,20 @@ unittest
 }
 
 /**
+ * Convert bool to string. Can be used to set boolean values.
+ */
+@nogc @safe string boolToString(bool b) nothrow pure {
+    return b ? "true" : "false";
+}
+
+///
+unittest
+{
+    assert(boolToString(false) == "false");
+    assert(boolToString(true) == "true");
+}
+
+/**
  * Make locale name based on language, country, encoding and modifier.
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
  * See_Also: parseLocaleName
