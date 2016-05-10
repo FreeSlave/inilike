@@ -1013,6 +1013,8 @@ Comment=Manage files
     ilf.addGroup("Other Group");
     assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group", "Other Group"]));
     
+    assertThrown!IniLikeException(ilf.addGroup(""));
+    
     const IniLikeFile cilf = ilf;
     static assert(is(typeof(cilf.byGroup())));
     static assert(is(typeof(cilf.group("First Entry").byKeyValue())));
