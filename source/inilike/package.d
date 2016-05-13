@@ -40,7 +40,7 @@ unittest
     protected:
         @trusted override void validateKeyValue(string key, string value) const {
             if (!isValidKey(key)) {
-                throw new IniLikeEntryException("key is invalid", name(), key, value);
+                throw new IniLikeEntryException("key is invalid", groupName(), key, value);
             }
         }
     }
@@ -75,17 +75,18 @@ unittest
             return super.removeGroup(groupName);
         }
         
-        @trusted override void addLeadingComment(string line) nothrow {
+        @trusted override string appendLeadingComment(string line) nothrow {
             if (_options & ReadOptions.preserveComments) {
-                super.addLeadingComment(line);
+                return super.appendLeadingComment(line);
             }
+            return null;
         }
         
     protected:
         @trusted override void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
         {
             if (currentGroup && (_options & ReadOptions.preserveComments)) {
-                currentGroup.addComment(comment);
+                currentGroup.appendComment(comment);
             }
         }
         

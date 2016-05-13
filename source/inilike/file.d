@@ -17,6 +17,18 @@ private import std.exception;
 import inilike.common;
 public import inilike.range;
 
+private @trusted string makeComment(string line) pure nothrow
+{
+    if (line.length && line[$-1] == '\n') {
+        line = line[0..$-1];
+    }
+    if (!line.isComment && line.length) {
+        line = '#' ~ line;
+    }
+    line = line.replace("\n", " ");
+    return line;
+}
+
 /**
  * Line in group.
  */
@@ -262,7 +274,7 @@ public:
         auto lilf = new IniLikeFile;
         lilf.addGroup("Entry");
         auto group = lilf.group("Entry");
-        assert(group.name == "Entry"); 
+        assert(group.groupName == "Entry"); 
         group["Name"] = "Programmer";
         group["Name[ru_RU]"] = "Разработчик";
         group["Name[ru@jargon]"] = "Кодер";
@@ -403,7 +415,7 @@ Key3=Value3`;
      * Get name of this group.
      * Returns: The name of this group.
      */
-    @nogc @safe final string name() const nothrow pure {
+    @nogc @safe final string groupName() const nothrow pure {
         return _name;
     }
     
@@ -416,10 +428,22 @@ Key3=Value3`;
     
     /**
      * Add comment line into the group.
-     * See_Also: byIniLine
+     * Returns: Line added as comment.
+     * See_Also: byIniLine, prependComment
      */
-    @safe final void addComment(string comment) nothrow pure {
-        _values ~= IniLikeLine.fromComment(comment);
+    @safe final string appendComment(string comment) nothrow pure {
+        _values ~= IniLikeLine.fromComment(makeComment(comment));
+        return _values[$-1].comment();
+    }
+    
+    /**
+     * Add comment line at the start of group (after group header, before any key-value pairs).
+     * Returns: Line added as comment.
+     * See_Also: byIniLine, appendComment
+     */
+    @safe final string prependComment(string comment) nothrow pure {
+        _values = IniLikeLine.fromComment(makeComment(comment)) ~ _values;
+        return _values[0].comment();
     }
     
 protected:
@@ -599,12 +623,12 @@ protected:
      *  comment = Comment line to add.
      *  currentGroup = The group returned recently by createGroup during parsing. Can be null (e.g. if discarded)
      *  groupName = The name of the currently parsed group. Set even if currentGroup is null.
-     * See_Also: createGroup
+     * See_Also: createGroup, IniLikeGroup.appendComment
      */
     @trusted void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
     {
         if (currentGroup) {
-            currentGroup.addComment(comment);
+            currentGroup.appendComment(comment);
         }
     }
     
@@ -693,7 +717,7 @@ public:
             {
                 lineNumber++;
                 if (line.isComment || line.strip.empty) {
-                    addLeadingComment(line);
+                    appendLeadingComment(line);
                 } else {
                     throw new IniLikeException("Expected comment or empty line before any group");
                 }
@@ -702,7 +726,7 @@ public:
             foreach(g; reader.byGroup)
             {
                 lineNumber++;
-                string groupName = g.name;
+                string groupName = g.groupName;
                 
                 version(DigitalMars) {
                     foo(lineNumber); //fix dmd codgen bug with -O
@@ -840,7 +864,7 @@ public:
         }
         
         foreach(group; byGroup()) {
-            put(sink, "[" ~ group.name ~ "]");
+            put(sink, "[" ~ group.groupName ~ "]");
             foreach(line; group.byIniLine()) {
                 if (line.type == IniLikeLine.Type.Comment) {
                     put(sink, line.comment);
@@ -862,7 +886,7 @@ public:
     /**
      * Leading comments.
      * Returns: Range of leading comments (before any group)
-     * See_Also: addLeadingComment, prependLeadingComment
+     * See_Also: appendLeadingComment, prependLeadingComment
      */
     @nogc @safe final auto leadingComments() const nothrow pure {
         return _leadingComments;
@@ -872,34 +896,47 @@ public:
     unittest
     {
         auto ilf = new IniLikeFile();
-        ilf.addLeadingComment("First");
-        ilf.addLeadingComment("#Second");
-        ilf.prependLeadingComment("Shebang");
-        assert(ilf.leadingComments().equal(["#Shebang", "#First", "#Second"]));
+        assert(ilf.appendLeadingComment("First") == "#First");
+        assert(ilf.appendLeadingComment("#Second") == "#Second");
+        assert(ilf.appendLeadingComment("Sneaky\nKey=Value") == "#Sneaky Key=Value");
+        assert(ilf.appendLeadingComment("# New Line\n") == "# New Line");
+        assert(ilf.appendLeadingComment("") == "");
+        assert(ilf.appendLeadingComment("\n") == "");
+        assert(ilf.prependLeadingComment("Shebang") == "#Shebang");
+        assert(ilf.leadingComments().equal(["#Shebang", "#First", "#Second", "#Sneaky Key=Value", "# New Line", "", ""]));
+        ilf.clearLeadingComments();
+        assert(ilf.leadingComments().empty);
     }
     
     /**
      * Add leading comment. This will be appended to the list of leadingComments.
-     * Note: # will be prepended automatically if line is not empty and does not have # at the start.
+     * Note: # will be prepended automatically if line is not empty and does not have # at the start. 
+     *  The last new line character will be removed if present. Others will be replaced with whitespaces.
+     * Returns: Line that was added as comment.
      * See_Also: leadingComments, prependLeadingComment
      */
-    @safe void addLeadingComment(string line) nothrow {
-        if (!line.isComment && line.length) {
-            line = '#' ~ line;
-        }
+    @safe string appendLeadingComment(string line) nothrow {
+        line = makeComment(line);
         _leadingComments ~= line;
+        return line;
     }
     
     /**
      * Prepend leading comment (e.g. for setting shebang line).
-     * Note: # will be prepended automatically if line is not empty and does not have # at the start.
-     * See_Also: leadingComments, addLeadingComment
+     * Returns: Line that was added as comment.
+     * See_Also: leadingComments, appendLeadingComment
      */
-    @safe void prependLeadingComment(string line) nothrow {
-        if (!line.isComment && line.length) {
-            line = '#' ~ line;
-        }
+    @safe string prependLeadingComment(string line) nothrow pure {
+        line = makeComment(line);
         _leadingComments = line ~ _leadingComments;
+        return line;
+    }
+    
+    /**
+     * Remove all coments met before groups.
+     */
+    @nogc final @safe void clearLeadingComments() nothrow {
+        _leadingComments = null;
     }
     
 private:
@@ -992,18 +1029,22 @@ Comment=Manage files
     
     assert(ilf.group("Another Group")["Name"] == "Commander");
     assert(equal(ilf.group("Another Group").byKeyValue(), [ keyValueTuple("Name", "Commander"), keyValueTuple("Comment", "Manage files") ]));
+    
+    assert(ilf.group("Another Group").appendComment("The lastest comment"));
+    assert(ilf.group("Another Group").prependComment("The first comment"));
+    
     assert(equal(
         ilf.group("Another Group").byIniLine(), 
-        [IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment")]
+        [IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment"), IniLikeLine.fromComment("#The lastest comment")]
     ));
     
-    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group"]));
+    assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry", "Another Group"]));
     
     assert(!ilf.removeGroup("NonExistent Group"));
     
     assert(ilf.removeGroup("Another Group"));
     assert(!ilf.group("Another Group"));
-    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry"]));
+    assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry"]));
     
     ilf.addGroup("Another Group");
     assert(ilf.group("Another Group"));
@@ -1011,7 +1052,7 @@ Comment=Manage files
     assert(ilf.group("Another Group").byKeyValue().empty);
     
     ilf.addGroup("Other Group");
-    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group", "Other Group"]));
+    assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry", "Another Group", "Other Group"]));
     
     assertThrown!IniLikeException(ilf.addGroup(""));
     

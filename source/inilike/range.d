@@ -52,7 +52,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
          * Note: This can become invalid during parsing the Input Range 
          * (e.g. if string buffer storing this value is reused in later reads).
          */
-        auto name() {
+        auto groupName() {
             return parseGroupHeader(_originalLine);
         }
         
@@ -104,7 +104,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
             
             bool empty()
             {
-                return _currentGroup.name.empty;
+                return _currentGroup.groupName.empty;
             }
             
             void popFront()
@@ -165,19 +165,19 @@ KeyValue6`;
     
     auto byGroup = r.byGroup;
     
-    assert(byGroup.front.name == "First group");
+    assert(byGroup.front.groupName == "First group");
     assert(byGroup.front.originalLine == "[First group]");
     
     
     assert(byGroup.front.byEntry.front == "KeyValue1");
     assert(byGroup.front.byEntry.equal(["KeyValue1", "KeyValue2"]));
     byGroup.popFront();
-    assert(byGroup.front.name == "Second group");
+    assert(byGroup.front.groupName == "Second group");
     byGroup.popFront();
-    assert(byGroup.front.name == "Empty group");
+    assert(byGroup.front.groupName == "Empty group");
     assert(byGroup.front.byEntry.empty);
     byGroup.popFront();
-    assert(byGroup.front.name == "Third group");
+    assert(byGroup.front.groupName == "Third group");
     byGroup.popFront();
     assert(byGroup.empty);
 }
