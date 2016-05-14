@@ -27,6 +27,17 @@ Freedesktop specifications use the format which I call **ini-like** because it's
 1. Comments start with '#', not ';'.
 2. Each comment is always placed on its own line. Key-value can't be mixed with a comment on the same line.
 
+Example:
+
+    # Comment
+    [Group name]
+    Key=Value
+    # Comment inside group
+    AnotherKey=Value
+
+    [Another group]
+    Key2=Value
+
 ## Localized values lookup. 
 
 The localized value is the value associated with the localized key. Localized keys look like this:

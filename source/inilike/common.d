@@ -461,7 +461,7 @@ unittest
 @nogc @safe bool needEscaping(String)(String value) nothrow pure if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     for (size_t i=0; i<value.length; ++i) {
-        auto c = value[i];
+        const c = value[i];
         if (c == '\n' || c == '\r') {
             return true;
         }
@@ -536,7 +536,7 @@ unittest
 
 unittest
 {
-    static immutable Tuple!(char, char)[] pairs = [tuple('\\', '\\')];
+    enum Tuple!(char, char)[] pairs = [tuple('\\', '\\')];
     static assert(is(typeof(doUnescape("", pairs)) == string));
     static assert(is(typeof(doUnescape("".dup, pairs)) == char[]));
 }
