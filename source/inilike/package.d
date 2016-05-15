@@ -9,7 +9,8 @@ Key=Value
 AnotherKey=Value
 
 [Another group]
-Key2=Value
+Key=English value
+Key[fr_FR]=Francais value
 
  * ---
  * Authors: 

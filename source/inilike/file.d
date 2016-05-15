@@ -157,18 +157,6 @@ public:
         return setKeyValueImpl(key, value);
     }
     
-    ///
-    unittest
-    {
-        auto ilf = new IniLikeFile();
-        ilf.addGroup("Group");
-        
-        auto entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
-        assert(entryException !is null);
-        assert(entryException.key == "Key");
-        assert(entryException.value == "New\nline");
-    }
-    
     /**
      * Assign localized value.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
@@ -465,6 +453,7 @@ protected:
      *  key = key to validate.
      *  value = value that is being set to key.
      * Throws: IniLikeEntryException if either key is invalid.
+     * See_Also: validateValue
      */
     @trusted void validateKey(string key, string value) const {
         if (key.empty || key.strip.empty) {
@@ -522,11 +511,24 @@ protected:
      *  key = key the value is being set to.
      *  value = value to validate. Considered to be escaped.
      * Throws: IniLikeEntryException if value is invalid.
+     * See_Also: validateKey
      */
     @trusted void validateValue(string key, string value) const {
         if (value.needEscaping()) {
             throw new IniLikeEntryException("The value needs to be escaped", _name, key, value);
         }
+    }
+    
+    ///
+    unittest
+    {
+        auto ilf = new IniLikeFile();
+        ilf.addGroup("Group");
+        
+        auto entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
+        assert(entryException !is null);
+        assert(entryException.key == "Key");
+        assert(entryException.value == "New\nline");
     }
     
     /**
@@ -696,7 +698,7 @@ protected:
      * This function is called only in constructor and can be reimplemented in derived classes, 
      * e.g. to insert additional checks or create specific derived class depending on groupName.
      * Returned value is later passed to addCommentForGroup and addKeyValueForGroup methods as currentGroup. 
-     * Reimplemented method also is allowd to return null.
+     * Reimplemented method also is allowed to return null.
      * Default implementation just returns empty IniLikeGroup with name set to groupName.
      * Throws:
      *  IniLikeException if group with such name already exists.
