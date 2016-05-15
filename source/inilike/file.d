@@ -153,12 +153,22 @@ public:
      * See_Also: writeEntry
      */
     @safe final string opIndexAssign(string value, string key) {
-        validateKeyValue(key, value);
-        if (value.needEscaping()) {
-            throw new IniLikeEntryException("The value needs to be escaped", _name, key, value);
-        }
+        validateKeyAndValue(key, value);
         return setKeyValueImpl(key, value);
     }
+    
+    ///
+    unittest
+    {
+        auto ilf = new IniLikeFile();
+        ilf.addGroup("Group");
+        
+        auto entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
+        assert(entryException !is null);
+        assert(entryException.key == "Key");
+        assert(entryException.value == "New\nline");
+    }
+    
     /**
      * Assign localized value.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
@@ -212,7 +222,7 @@ public:
      */
     @safe final string writeEntry(string key, string value, string locale = null) {
         value = value.escapeValue();
-        validateKeyValue(key, value);
+        validateKeyAndValue(key, value);
         string keyName = localizedKey(key, locale);
         return setKeyValueImpl(keyName, value);
     }
@@ -448,20 +458,23 @@ Key3=Value3`;
     
 protected:
     /**
-     * Validate key and value before setting value to key for this group and throw exception if not valid.
+     * Validate key before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes. 
-     * Default implementation check if key is not empty string, does not look like comment and does not contain new line or carriage return characters. Value is left unchecked.
+     * Default implementation checks if key is not empty string, does not look like comment and does not contain new line or carriage return characters.
      * Params:
      *  key = key to validate.
-     *  value = value to validate. Considered to be escaped.
-     * Throws: IniLikeEntryException if either key or value is invalid.
+     *  value = value that is being set to key.
+     * Throws: IniLikeEntryException if either key is invalid.
      */
-    @trusted void validateKeyValue(string key, string value) const {
+    @trusted void validateKey(string key, string value) const {
         if (key.empty || key.strip.empty) {
             throw new IniLikeEntryException("key must not be empty", _name, key, value);
         }
         if (key.isComment()) {
             throw new IniLikeEntryException("key must not start with #", _name, key, value);
+        }
+        if (key.canFind('=')) {
+            throw new IniLikeEntryException("key must not have '=' character in it", _name, key, value);
         }
         if (key.needEscaping()) {
             throw new IniLikeEntryException("key must not contain new line characters", _name, key, value);
@@ -485,11 +498,6 @@ protected:
         assert(entryException.key == "    ");
         assert(entryException.value == "Value2");
         
-        entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
-        assert(entryException !is null);
-        assert(entryException.key == "Key");
-        assert(entryException.value == "New\nline");
-        
         entryException = collectException!IniLikeEntryException(ilf.group("Group")["New\nLine"] = "Value3");
         assert(entryException !is null);
         assert(entryException.key == "New\nLine");
@@ -499,6 +507,35 @@ protected:
         assert(entryException !is null);
         assert(entryException.key == "# Comment");
         assert(entryException.value == "Value4");
+        
+        entryException = collectException!IniLikeEntryException(ilf.group("Group")["Everyone=Is"] = "Equal");
+        assert(entryException !is null);
+        assert(entryException.key == "Everyone=Is");
+        assert(entryException.value == "Equal");
+    }
+    
+    /**
+     * Validate value for key before setting value to key for this group and throw exception if not valid.
+     * Can be reimplemented in derived classes. 
+     * Default implementation checks if value is escaped.
+     * Params:
+     *  key = key the value is being set to.
+     *  value = value to validate. Considered to be escaped.
+     * Throws: IniLikeEntryException if value is invalid.
+     */
+    @trusted void validateValue(string key, string value) const {
+        if (value.needEscaping()) {
+            throw new IniLikeEntryException("The value needs to be escaped", _name, key, value);
+        }
+    }
+    
+    /**
+     * Utility function that calls validateKey and validateValue.
+     * See_Also: validateKey, validateValue
+     */
+    @safe final void validateKeyAndValue(string key, string value) const {
+        validateKey(key, value);
+        validateValue(key, value);
     }
     
 private:

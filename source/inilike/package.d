@@ -38,7 +38,7 @@ unittest
             super("Desktop Entry");
         }
     protected:
-        @trusted override void validateKeyValue(string key, string value) const {
+        @trusted override void validateKey(string key, string value) const {
             if (!isValidKey(key)) {
                 throw new IniLikeEntryException("key is invalid", groupName(), key, value);
             }
