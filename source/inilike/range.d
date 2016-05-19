@@ -133,7 +133,7 @@ private:
  * Params:
  *  range = input range of strings (strings must be without trailing new line characters)
  * Returns: IniLikeReader for given range.
- * See_Also: iniLikeFileReader, iniLikeStringReader
+ * See_Also: $(D iniLikeFileReader), $(D iniLikeStringReader)
  */
 auto iniLikeRangeReader(Range)(Range range)
 {
@@ -186,7 +186,7 @@ KeyValue6`;
  * Convenient function for reading ini-like contents from the file.
  * Throws: $(B ErrnoException) if file could not be opened.
  * Note: This function uses byLineCopy internally. Fallbacks to byLine on older compilers.
- * See_Also: iniLikeRangeReader, iniLikeStringReader
+ * See_Also: $(D iniLikeRangeReader), $(D iniLikeStringReader)
  */
 @trusted auto iniLikeFileReader(string fileName)
 {
@@ -201,7 +201,7 @@ KeyValue6`;
 /**
  * Convenient function for reading ini-like contents from string.
  * Note: on frontends < 2.067 it uses splitLines thereby allocates strings.
- * See_Also: iniLikeRangeReader, iniLikeFileReader
+ * See_Also: $(D iniLikeRangeReader), $(D iniLikeFileReader)
  */
 @trusted auto iniLikeStringReader(String)(String contents) if (isSomeString!String && is(ElementEncodingType!String : char))
 {

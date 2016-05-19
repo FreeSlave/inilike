@@ -183,7 +183,8 @@ unittest
 }
 
 /**
- * Test whether the entry value represents true
+ * Test whether the entry value represents true.
+ * See_Also: $(D isFalse), $(D isBoolean)
  */
 @nogc @safe bool isTrue(const(char)[] value) pure nothrow {
     return (value == "true" || value == "1");
@@ -198,7 +199,8 @@ unittest
 }
 
 /**
- * Test whether the entry value represents false
+ * Test whether the entry value represents false.
+ * See_Also: $(D isTrue), $(D isBoolean)
  */
 @nogc @safe bool isFalse(const(char)[] value) pure nothrow {
     return (value == "false" || value == "0");
@@ -214,7 +216,7 @@ unittest
 
 /**
  * Check if the entry value can be interpreted as boolean value.
- * See_Also: isTrue, isFalse
+ * See_Also: $(D isTrue), $(D isFalse)
  */
 @nogc @safe bool isBoolean(const(char)[] value) pure nothrow {
     return isTrue(value) || isFalse(value);
@@ -232,6 +234,7 @@ unittest
 
 /**
  * Convert bool to string. Can be used to set boolean values.
+ * See_Also: $(D isBoolean)
  */
 @nogc @safe string boolToString(bool b) nothrow pure {
     return b ? "true" : "false";
@@ -247,7 +250,7 @@ unittest
 /**
  * Make locale name based on language, country, encoding and modifier.
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
- * See_Also: parseLocaleName
+ * See_Also: $(D parseLocaleName)
  */
 @safe String makeLocaleName(String)(
     String lang, String country = null, 
@@ -274,7 +277,7 @@ unittest
 /**
  * Parse locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
  * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
- * See_Also: makeLocaleName
+ * See_Also: $(D makeLocaleName)
  */
 @nogc @trusted auto parseLocaleName(String)(String locale) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char))
 {
@@ -328,7 +331,7 @@ unittest
 /**
  * Construct localized key name from key and locale.
  * Returns: localized key in form key[locale] dropping encoding out if present.
- * See_Also: separateFromLocale
+ * See_Also: $(D separateFromLocale)
  */
 @safe String localizedKey(String)(String key, String locale) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char))
 {
@@ -366,7 +369,7 @@ unittest
  * Separate key name into non-localized key and locale name.
  * If key is not localized returns original key and empty string.
  * Returns: tuple of key and locale name.
- * See_Also: localizedKey
+ * See_Also: $(D localizedKey)
  */
 @nogc @trusted auto separateFromLocale(String)(String key) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char)) {
     if (key.endsWith("]")) {
@@ -457,6 +460,7 @@ unittest
 /**
  * Check if value needs to be escaped. This function is currently tolerant to single slashes and tabs.
  * Returns: true if value needs to escaped, false otherwise.
+ * See_Also: $(D escapeValue)
  */
 @nogc @safe bool needEscaping(String)(String value) nothrow pure if (isSomeString!String && is(ElementEncodingType!String : char))
 {
@@ -482,7 +486,7 @@ unittest
  * Escapes string by replacing special symbols with escaped sequences. 
  * These symbols are: '\\' (backslash), '\n' (newline), '\r' (carriage return) and '\t' (tab).
  * Returns: Escaped string.
- * See_Also: unescapeValue
+ * See_Also: $(D unescapeValue)
  */
 @trusted String escapeValue(String)(String value) pure if (isSomeString!String && is(ElementEncodingType!String : char)) {
     return value.replace("\\", `\\`.to!String).replace("\n", `\n`.to!String).replace("\r", `\r`.to!String).replace("\t", `\t`.to!String);
@@ -545,7 +549,7 @@ unittest
 /**
  * Unescapes string. You should unescape values returned by library before displaying until you want keep them as is (e.g., to allow user to edit values in escaped form).
  * Returns: Unescaped string.
- * See_Also: escapeValue
+ * See_Also: $(D escapeValue), $(D doUnescape)
  */
 @safe inout(char)[] unescapeValue(inout(char)[] value) nothrow pure
 {

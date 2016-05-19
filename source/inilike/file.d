@@ -121,7 +121,7 @@ public:
      * Returns: The value associated with the key.
      * Note: The value is not unescaped automatically.
      * Warning: It's an error to access nonexistent value.
-     * See_Also: value
+     * See_Also: $(D value), $(D readEntry)
      */
     @nogc @safe final string opIndex(string key) const nothrow pure {
         auto i = key in _indices;
@@ -150,7 +150,7 @@ public:
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
      * Returns: Inserted/updated value or null string if key was not added.
      * Throws: IniLikeEntryException if key or value is not valid or value needs to be escaped.
-     * See_Also: writeEntry
+     * See_Also: $(D writeEntry)
      */
     @safe final string opIndexAssign(string value, string key) {
         validateKeyAndValue(key, value);
@@ -160,7 +160,7 @@ public:
     /**
      * Assign localized value.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
-     * See_Also: setLocalizedValue, localizedValue
+     * See_Also: $(D setLocalizedValue), $(D localizedValue), $(D writeEntry)
      */
     @safe final string opIndexAssign(string value, string key, string locale) {
         string keyName = localizedKey(key, locale);
@@ -178,7 +178,7 @@ public:
      * Get value by key.
      * Returns: The value associated with the key, or defaultValue if group does not contain such item.
      * Note: The value is not unescaped automatically.
-     * See_Also: readEntry, localizedValue
+     * See_Also: $(D readEntry), $(D localizedValue)
      */
     @nogc @safe final string value(string key, string defaultValue = null) const nothrow pure {
         auto pick = key in _indices;
@@ -194,7 +194,7 @@ public:
     /**
      * Get value by key. This function automatically unescape the found value before returning.
      * Returns: The unescaped value associated with key or null if not found.
-     * See_Also: value
+     * See_Also: $(D value), $(D writeEntry)
      */
     @safe final string readEntry(string key, string locale = null) const nothrow pure {
         if (locale.length) {
@@ -206,7 +206,8 @@ public:
     
     /**
      * Set value by key. This function automatically escape the value (you should not escape value yourself) when writing it.
-     * Throws: IniLikeEntryException if key or value is not valid.
+     * Throws: $(D IniLikeEntryException) if key or value is not valid.
+     * See_Also: $(D readEntry)
      */
     @safe final string writeEntry(string key, string value, string locale = null) {
         value = value.escapeValue();
@@ -224,7 +225,7 @@ public:
      * Returns: The localized value associated with key and locale, 
      * or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
      * Note: The value is not unescaped automatically.
-     * See_Also: value
+     * See_Also: $(D value), $(D readEntry)
      */
     @safe final string localizedValue(string key, string locale, bool nonLocaleFallback = true) const nothrow pure {
         //Any ideas how to get rid of this boilerplate and make less allocations?
@@ -298,7 +299,7 @@ public:
      * Same as localized version of opIndexAssign, but uses function syntax.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
      * Throws: IniLikeEntryException if key or value is not valid or value needs to be escaped.
-     * See_Also: writeEntry
+     * See_Also: $(D writeEntry)
      */
     @safe final void setLocalizedValue(string key, string locale, string value) {
         this[key, locale] = value;
@@ -381,9 +382,9 @@ Key3=Value3`;
     }
     
     /**
-     * Iterate by Key-Value pairs.
+     * Iterate by Key-Value pairs. Values are left in escaped form.
      * Returns: Range of Tuple!(string, "key", string, "value").
-     * See_Also: value, localizedValue
+     * See_Also: $(D value), $(D localizedValue)
      */
     @nogc @safe final auto byKeyValue() const nothrow {
         return staticByKeyValue(_values);
@@ -427,7 +428,7 @@ Key3=Value3`;
     /**
      * Add comment line into the group.
      * Returns: Line added as comment.
-     * See_Also: byIniLine, prependComment
+     * See_Also: $(D byIniLine), $(D prependComment)
      */
     @safe final string appendComment(string comment) nothrow pure {
         _values ~= IniLikeLine.fromComment(makeComment(comment));
@@ -437,7 +438,7 @@ Key3=Value3`;
     /**
      * Add comment line at the start of group (after group header, before any key-value pairs).
      * Returns: Line added as comment.
-     * See_Also: byIniLine, appendComment
+     * See_Also: $(D byIniLine), $(D appendComment)
      */
     @safe final string prependComment(string comment) nothrow pure {
         _values = IniLikeLine.fromComment(makeComment(comment)) ~ _values;
@@ -452,8 +453,8 @@ protected:
      * Params:
      *  key = key to validate.
      *  value = value that is being set to key.
-     * Throws: IniLikeEntryException if either key is invalid.
-     * See_Also: validateValue
+     * Throws: $(D IniLikeEntryException) if either key is invalid.
+     * See_Also: $(D validateValue)
      */
     @trusted void validateKey(string key, string value) const {
         if (key.empty || key.strip.empty) {
@@ -510,8 +511,8 @@ protected:
      * Params:
      *  key = key the value is being set to.
      *  value = value to validate. Considered to be escaped.
-     * Throws: IniLikeEntryException if value is invalid.
-     * See_Also: validateKey
+     * Throws: $(D IniLikeEntryException) if value is invalid.
+     * See_Also: $(D validateKey)
      */
     @trusted void validateValue(string key, string value) const {
         if (value.needEscaping()) {
@@ -533,7 +534,7 @@ protected:
     
     /**
      * Utility function that calls validateKey and validateValue.
-     * See_Also: validateKey, validateValue
+     * See_Also: $(D validateKey), $(D validateValue)
      */
     @safe final void validateKeyAndValue(string key, string value) const {
         validateKey(key, value);
@@ -599,7 +600,7 @@ class IniLikeReadException : IniLikeException
     /**
      * Original IniLikeEntryException which caused this error.
      * This will have the same msg.
-     * Returns: IniLikeEntryException object or null if the cause of error was something else.
+     * Returns: $(D IniLikeEntryException) object or null if the cause of error was something else.
      */
     @nogc @safe IniLikeEntryException entryException() nothrow pure {
         return _entryException;
@@ -664,7 +665,7 @@ protected:
      *  comment = Comment line to add.
      *  currentGroup = The group returned recently by createGroup during parsing. Can be null (e.g. if discarded)
      *  groupName = The name of the currently parsed group. Set even if currentGroup is null.
-     * See_Also: createGroup, IniLikeGroup.appendComment
+     * See_Also: $(D createGroup), $(D IniLikeGroup.appendComment)
      */
     @trusted void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
     {
@@ -681,7 +682,7 @@ protected:
      *  value = Value to set for key.
      *  currentGroup = The group returned recently by createGroup during parsing. Can be null (e.g. if discarded)
      *  groupName = The name of the currently parsed group. Set even if currentGroup is null.
-     * See_Also: createGroup
+     * See_Also: $(D createGroup)
      */
     @trusted void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
     {
@@ -701,9 +702,9 @@ protected:
      * Reimplemented method also is allowed to return null.
      * Default implementation just returns empty IniLikeGroup with name set to groupName.
      * Throws:
-     *  IniLikeException if group with such name already exists.
+     *  $(D IniLikeException) if group with such name already exists.
      * See_Also:
-     *  addKeyValueForGroup, addCommentForGroup
+     *  $(D addKeyValueForGroup), $(D addCommentForGroup)
      */
     @trusted IniLikeGroup createGroup(string groupName)
     {
@@ -732,7 +733,7 @@ public:
      * Read from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
-     *  $(B IniLikeReadException) if error occured while reading the file.
+     *  $(D IniLikeReadException) if error occured while reading the file.
      */
     @trusted this(string fileName) {
         this(iniLikeFileReader(fileName), fileName);
@@ -742,7 +743,7 @@ public:
      * Read from range of inilike.range.IniLikeReader.
      * Note: All exceptions thrown within constructor are turning into IniLikeReadException.
      * Throws:
-     *  $(B IniLikeReadException) if error occured while parsing.
+     *  $(D IniLikeReadException) if error occured while parsing.
      */
     this(IniLikeReader)(IniLikeReader reader, string fileName = null)
     {
@@ -810,7 +811,7 @@ public:
     /**
      * Get group by name.
      * Returns: IniLikeGroup instance associated with groupName or $(B null) if not found.
-     * See_Also: byGroup
+     * See_Also: $(D byGroup)
      */
     @nogc @safe final inout(IniLikeGroup) group(string groupName) nothrow inout pure {
         auto pick = groupName in _groupIndices;
@@ -824,7 +825,7 @@ public:
      * Create new group using groupName.
      * Returns: Newly created instance of IniLikeGroup.
      * Throws: IniLikeException if group with such name already exists or groupName is empty.
-     * See_Also: removeGroup, group
+     * See_Also: $(D removeGroup), $(D group)
      */
     @safe final IniLikeGroup addGroup(string groupName) {
         if (groupName.length == 0) {
@@ -842,7 +843,7 @@ public:
     /**
      * Remove group by name. Do nothing if group with such name does not exist.
      * Returns: true if group was deleted, false otherwise.
-     * See_Also: addGroup, group
+     * See_Also: $(D addGroup), $(D group)
      */
     @safe bool removeGroup(string groupName) nothrow {
         auto pick = groupName in _groupIndices;
@@ -856,7 +857,7 @@ public:
     
     /**
      * Range of groups in order how they were defined in file.
-     * See_Also: group
+     * See_Also: $(D group)
      */
     @nogc @safe final auto byGroup() const nothrow {
         return _groups.filter!(f => f !is null);
@@ -871,7 +872,7 @@ public:
     /**
      * Save object to the file using .ini-like format.
      * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
-     * See_Also: saveToString, save
+     * See_Also: $(D saveToString), $(D save)
      */
     @trusted final void saveToFile(string fileName) const {
         import std.stdio : File;
@@ -886,7 +887,7 @@ public:
     /**
      * Save object to string using .ini like format.
      * Returns: A string that represents the contents of file.
-     * See_Also: saveToFile, save
+     * See_Also: $(D saveToFile), $(D save)
      */
     @trusted final string saveToString() const {
         auto a = appender!(string[])();
@@ -927,7 +928,7 @@ public:
     /**
      * Leading comments.
      * Returns: Range of leading comments (before any group)
-     * See_Also: appendLeadingComment, prependLeadingComment
+     * See_Also: $(D appendLeadingComment), $(D prependLeadingComment)
      */
     @nogc @safe final auto leadingComments() const nothrow pure {
         return _leadingComments;
@@ -954,7 +955,7 @@ public:
      * Note: # will be prepended automatically if line is not empty and does not have # at the start. 
      *  The last new line character will be removed if present. Others will be replaced with whitespaces.
      * Returns: Line that was added as comment.
-     * See_Also: leadingComments, prependLeadingComment
+     * See_Also: $(D leadingComments), $(D prependLeadingComment)
      */
     @safe string appendLeadingComment(string line) nothrow {
         line = makeComment(line);
@@ -965,7 +966,7 @@ public:
     /**
      * Prepend leading comment (e.g. for setting shebang line).
      * Returns: Line that was added as comment.
-     * See_Also: leadingComments, appendLeadingComment
+     * See_Also: $(D leadingComments), $(D appendLeadingComment)
      */
     @safe string prependLeadingComment(string line) nothrow pure {
         line = makeComment(line);
@@ -975,6 +976,7 @@ public:
     
     /**
      * Remove all coments met before groups.
+     * See_Also: $(D leadingComments)
      */
     @nogc final @safe void clearLeadingComments() nothrow {
         _leadingComments = null;
