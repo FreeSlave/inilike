@@ -17,6 +17,8 @@ private import std.exception;
 import inilike.common;
 public import inilike.range;
 
+private import std.typecons : Rebindable, rebindable;
+
 private @trusted string makeComment(string line) pure nothrow
 {
     if (line.length && line[$-1] == '\n') {
@@ -27,6 +29,672 @@ private @trusted string makeComment(string line) pure nothrow
     }
     line = line.replace("\n", " ");
     return line;
+}
+
+/**
+ * Container used internally by $(D IniLikeFile) and $(D IniLikeGroup).
+ * Technically this is list with optional value access by key.
+ */
+struct ListMap(K,V, size_t chunkSize = 32)
+{       
+    ///
+    @disable this(this);
+    
+    /**
+     * Insert key-value pair to the front of list.
+     * Returns: Inserted node.
+     */
+    Node* insertFront(K key, V value) {
+        Node* newNode = givePlace(key, value);
+        putToFront(newNode);
+        return newNode;
+    }
+    
+    /**
+     * Insert key-value pair to the back of list.
+     * Returns: Inserted node.
+     */
+    Node* insertBack(K key, V value) {
+        Node* newNode = givePlace(key, value);
+        putToBack(newNode);
+        return newNode;
+    }
+    
+    /**
+     * Insert key-value pair before some node in the list.
+     * Returns: Inserted node.
+     */
+    Node* insertBefore(Node* node, K key, V value) {
+        Node* newNode = givePlace(key, value);
+        putBefore(node, newNode);
+        return newNode;
+    }
+    
+    /**
+     * Insert key-value pair after some node in the list.
+     * Returns: Inserted node.
+     */
+    Node* insertAfter(Node* node, K key, V value) {
+        Node* newNode = givePlace(key, value);
+        putAfter(node, newNode);
+        return newNode;
+    }
+    
+    /**
+     * Add value at the start of list.
+     * Returns: Inserted node.
+     */
+    Node* prepend(V value) {
+        Node* newNode = givePlace(value);
+        putToFront(newNode);
+        return newNode;
+    }
+    
+    /**
+     * Add value at the end of list.
+     * Returns: Inserted node.
+     */
+    Node* append(V value) {
+        Node* newNode = givePlace(value);
+        putToBack(newNode);
+        return newNode;
+    }
+    
+    /**
+     * Add value before some node in the list.
+     * Returns: Inserted node.
+     */
+    Node* addBefore(Node* node, V value) {
+        Node* newNode = givePlace(value);
+        putBefore(node, newNode);
+        return newNode;
+    }
+    
+    /**
+     * Add value after some node in the list.
+     * Returns: Inserted node.
+     */
+    Node* addAfter(Node* node, V value) {
+        Node* newNode = givePlace(value);
+        putAfter(node, newNode);
+        return newNode;
+    }
+    
+    /**
+     * Move node to the front of list.
+     */
+    void moveToFront(Node* toMove)
+    {
+        pullOut(toMove);
+        putToFront(toMove);
+    }
+    
+    /**
+     * Move node to the back of list.
+     */
+    void moveToBack(Node* toMove)
+    {
+        pullOut(toMove);
+        putToBack(toMove);
+    }
+    
+    /**
+     * Move node to the location before other node.
+     */
+    void moveBefore(Node* node, Node* toMove) {
+        pullOut(toMove);
+        putBefore(node, toMove);
+    }
+    
+    /**
+     * Move node to the location after other node.
+     */
+    void moveAfter(Node* node, Node* toMove) {
+        pullOut(toMove);
+        putAfter(node, toMove);
+    }
+    
+    /**
+     * Remove node from list. It also becomes unaccessible via key lookup.
+     */
+    void remove(Node* toRemove)
+    {
+        pullOut(toRemove);
+        
+        if (toRemove.hasKey()) {
+            _dict.remove(toRemove.key);
+        }
+        
+        if (_lastEmpty) {
+            _lastEmpty.next = toRemove;
+        }
+        toRemove.prev = _lastEmpty;
+        _lastEmpty = toRemove;
+    }
+    
+    /**
+     * Remove value by key.
+     * Returns: true if node with such key was found and removed. False otherwise.
+     */
+    bool remove(K key) {
+        Node** toRemove = key in _dict;
+        if (toRemove) {
+            remove(*toRemove);
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Remove the first node.
+     */
+    void removeFront() {
+        remove(_head);
+    }
+    
+    /**
+     * Remove the last node.
+     */
+    void removeBack() {
+        remove(_tail);
+    }
+    
+    /**
+     * Get list node by key.
+     * Returns: Found Node or null if container does not have node associated with key.
+     */
+    inout(Node)* getNode(K key) inout {
+        auto toReturn = key in _dict;
+        if (toReturn) {
+            return *toReturn;
+        }
+        return null;
+    }
+    
+    private static struct ByNode(NodeType)
+    {
+    private:
+        NodeType* _begin;
+        NodeType* _end;
+        
+    public:
+        bool empty() const {
+            return _begin is null || _end is null || _begin.prev is _end || _end.next is _begin;
+        }
+        
+        auto front() {
+            return _begin;
+        }
+        
+        auto back() {
+            return _end;
+        }
+        
+        void popFront() {
+            _begin = _begin.next;
+        }
+        
+        void popBack() {
+            _end = _end.prev;
+        }
+        
+        @property auto save() {
+            return this;
+        }
+    }
+    
+    /**
+     * Iterate over list nodes.
+     * See_Also: byEntry
+     */
+    auto byNode() 
+    {
+        return ByNode!Node(_head, _tail);
+    }
+    
+    ///ditto
+    auto byNode() const
+    {
+        return ByNode!(const(Node))(_head, _tail);
+    }
+    
+    /**
+     * Iterate over nodes mapped to Entry elements (useful for testing).
+     */
+    auto byEntry() const {
+        import std.algorithm : map;
+        return byNode().map!(node => node.toEntry());
+    }
+    
+    /**
+     * Represenation of list node.
+     */
+    static struct Node {
+    private:
+        K _key;
+        V _value;
+        bool _hasKey;
+        Node* _prev;
+        Node* _next;
+        
+        this(K key, V value) {
+            _key = key;
+            _value = value;
+            _hasKey = true;
+        }
+        
+        this(V value) {
+            _value = value;
+            _hasKey = false;
+        }
+        
+        void prev(Node* newPrev) {
+            _prev = newPrev;
+        }
+        
+        void next(Node* newNext) {
+            _next = newNext;
+        }
+        
+    public:
+        /**
+         * Get stored value.
+         */
+        inout(V) value() inout {
+            return _value;
+        }
+        
+        /**
+         * Set stored value.
+         */
+        void value(V newValue) {
+            _value = newValue;
+        }
+        
+        /**
+         * Tell whether this node is a key-value node.
+         */
+        bool hasKey() const {
+            return _hasKey;
+        }
+        
+        /**
+         * Key in key-value node.
+         */
+        auto key() const {
+            return _key;
+        }
+        
+        /**
+         * Access previous node in the list.
+         */
+        inout(Node)* prev() inout {
+            return _prev;
+        }
+        
+        /**
+         * Access next node in the list.
+         */
+        inout(Node)* next() inout {
+            return _next;
+        }
+        
+        ///
+        auto toEntry() const {
+            static if (is(V == class)) {
+                alias Rebindable!(const(V)) T;
+                if (hasKey()) {
+                    return Entry!T(_key, rebindable(_value));
+                } else {
+                    return Entry!T(rebindable(_value));
+                }
+                
+            } else {
+                alias V T;
+                
+                if (hasKey()) {
+                    return Entry!T(_key, _value);
+                } else {
+                    return Entry!T(_value);
+                }
+            }
+            
+            
+        }
+    }
+    
+    /// Mapping of Node to structure.
+    static struct Entry(T = V)
+    {
+    private:
+        K _key;
+        T _value;
+        bool _hasKey;
+        
+    public:
+        ///
+        this(T value) {
+            _value = value;
+            _hasKey = false;
+        }
+        
+        ///
+        this(K key, T value) {
+            _key = key;
+            _value = value;
+            _hasKey = true;
+        }
+        
+        ///
+        auto value() inout {
+            return _value;
+        }
+        
+        ///
+        auto key() const {
+            return _key;
+        }
+        
+        ///
+        bool hasKey() const {
+            return _hasKey;
+        }
+    }
+    
+private:
+    void putToFront(Node* toPut) 
+    in {
+        assert(toPut !is null);
+    } 
+    body {
+        if (_head) {
+            _head.prev = toPut;
+            toPut.next = _head;
+            _head = toPut;
+        } else {
+            _head = toPut;
+            _tail = toPut;
+        }
+    }
+    
+    void putToBack(Node* toPut)
+    in {
+        assert(toPut !is null);
+    }
+    body {
+        if (_tail) {
+            _tail.next = toPut;
+            toPut.prev = _tail;
+            _tail = toPut;
+        } else {
+            _tail = toPut;
+            _head = toPut;
+        }
+    }
+    
+    void putBefore(Node* node, Node* toPut)
+    in {
+        assert(toPut !is null);
+        assert(node !is null);
+    } 
+    body {
+        toPut.prev = node.prev;
+        if (toPut.prev) {
+            toPut.prev.next = toPut;
+        }
+        toPut.next = node;
+        node.prev = toPut;
+        
+        if (node is _head) {
+            _head = toPut;
+        }
+    }
+    
+    void putAfter(Node* node, Node* toPut) 
+    in {
+        assert(toPut !is null);
+        assert(node !is null);
+    }
+    body {
+        toPut.next = node.next;
+        if (toPut.next) {
+            toPut.next.prev = toPut;
+        }
+        toPut.prev = node;
+        node.next = toPut;
+        
+        if (node is _tail) {
+            _tail = toPut;
+        }
+    }
+    
+    void pullOut(Node* node) 
+    in {
+        assert(node !is null);
+    }
+    body {
+        if (node.next) {
+            node.next.prev = node.prev;
+        }
+        if (node.prev) {
+            node.prev.next = node.next;
+        }
+        
+        if (node is _head) {
+            _head = node.next;
+        }
+        if (node is _tail) {
+            _tail = node.prev;
+        }
+        
+        node.next = null;
+        node.prev = null;
+    }
+    
+    Node* givePlace(K key, V value) {
+        auto newNode = Node(key, value);
+        return givePlace(newNode);
+    }
+    
+    Node* givePlace(V value) {
+        auto newNode = Node(value);
+        return givePlace(newNode);
+    }
+    
+    Node* givePlace(ref Node node) {
+        Node* toReturn;
+        if (_lastEmpty is null) {
+            if (_storageSize < _storage.length) {
+                toReturn = &_storage[_storageSize];
+            } else {
+                size_t storageIndex = (_storageSize - chunkSize) / chunkSize;
+                if (storageIndex >= _additonalStorages.length) {
+                    _additonalStorages ~= (Node[chunkSize]).init;
+                }
+                
+                size_t index = (_storageSize - chunkSize) % chunkSize;
+                toReturn = &_additonalStorages[storageIndex][index];
+            }
+            
+            _storageSize++;
+        } else {
+            toReturn = _lastEmpty;
+            _lastEmpty = _lastEmpty.prev;
+            if (_lastEmpty) {
+                _lastEmpty.next = null;
+            }
+            toReturn.next = null;
+            toReturn.prev = null;
+        }
+        
+        toReturn._hasKey = node._hasKey;
+        toReturn._key = node._key;
+        toReturn._value = node._value;
+        
+        if (toReturn.hasKey()) {
+            _dict[toReturn.key] = toReturn;
+        }
+        return toReturn;
+    }
+    
+    Node[chunkSize] _storage;
+    Node[chunkSize][] _additonalStorages;
+    size_t _storageSize;
+    
+    Node* _tail;
+    Node* _head;
+    Node* _lastEmpty;
+    Node*[K] _dict;
+}
+
+unittest
+{
+    import std.range : isBidirectionalRange;
+    ListMap!(string, string) listMap;
+    static assert(isBidirectionalRange!(typeof(listMap.byNode())));
+}
+
+unittest
+{
+    import std.algorithm : equal;
+    import std.range : ElementType;
+    
+    alias ListMap!(string, string, 2) TestListMap;
+    
+    TestListMap listMap;
+    alias typeof(listMap).Node Node;
+    alias ElementType!(typeof(listMap.byEntry())) Entry;
+    
+    assert(listMap.byEntry().empty);
+    assert(listMap.getNode("Nonexistent") is null);
+    
+    listMap.insertFront("Start", "Fast");
+    assert(listMap.getNode("Start") !is null);
+    assert(listMap.getNode("Start").key() == "Start");
+    assert(listMap.getNode("Start").value() == "Fast");
+    assert(listMap.getNode("Start").hasKey());
+    assert(listMap.byEntry().equal([Entry("Start", "Fast")]));
+    assert(listMap.remove("Start"));
+    assert(listMap.byEntry().empty);
+    assert(listMap.getNode("Start") is null);
+    
+    listMap.insertBack("Finish", "Bad");
+    assert(listMap.byEntry().equal([Entry("Finish", "Bad")]));
+    assert(listMap.getNode("Finish").value() == "Bad");
+    
+    listMap.insertFront("Begin", "Good");
+    assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Finish", "Bad")]));
+    assert(listMap.getNode("Begin").value() == "Good");
+    
+    listMap.insertFront("Start", "Slow");
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad")]));
+    
+    listMap.insertAfter(listMap.getNode("Begin"), "Middle", "Person");
+    assert(listMap.getNode("Middle").value() == "Person");
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Middle", "Person"), Entry("Finish", "Bad")]));
+    
+    listMap.insertBefore(listMap.getNode("Middle"), "Mean", "Man");
+    assert(listMap.getNode("Mean").value() == "Man");
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Mean", "Man"), Entry("Middle", "Person"), Entry("Finish", "Bad")]));
+    
+    assert(listMap.remove("Mean"));
+    assert(listMap.remove("Middle"));
+    
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad")]));
+    
+    listMap.insertFront("New", "Era");
+    assert(listMap.byEntry().equal([Entry("New", "Era"), Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad")]));
+    
+    listMap.insertBack("Old", "Epoch");
+    assert(listMap.byEntry().equal([Entry("New", "Era"), Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad"), Entry("Old", "Epoch")]));
+    
+    listMap.moveToBack(listMap.getNode("New"));
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad"), Entry("Old", "Epoch"), Entry("New", "Era")]));
+    
+    listMap.moveToFront(listMap.getNode("Begin"));
+    assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Start", "Slow"), Entry("Finish", "Bad"), Entry("Old", "Epoch"), Entry("New", "Era")]));
+    
+    listMap.moveAfter(listMap.getNode("Finish"), listMap.getNode("Start"));
+    assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Finish", "Bad"), Entry("Start", "Slow"), Entry("Old", "Epoch"), Entry("New", "Era")]));
+    
+    listMap.moveBefore(listMap.getNode("Finish"), listMap.getNode("Old"));
+    assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Old", "Epoch"), Entry("Finish", "Bad"), Entry("Start", "Slow"), Entry("New", "Era")]));
+    
+    listMap.moveBefore(listMap.getNode("Begin"), listMap.getNode("Start"));
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Old", "Epoch"), Entry("Finish", "Bad"), Entry("New", "Era")]));
+    
+    listMap.moveAfter(listMap.getNode("New"), listMap.getNode("Finish"));
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Old", "Epoch"), Entry("New", "Era"), Entry("Finish", "Bad")]));
+    
+    listMap.getNode("Begin").value = "Evil";
+    assert(listMap.getNode("Begin").value() == "Evil");
+    
+    listMap.remove("Begin");
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Old", "Epoch"), Entry("New", "Era"), Entry("Finish", "Bad")]));
+    listMap.remove("Old");
+    listMap.remove("New");
+    assert(!listMap.remove("Begin"));
+    
+    Node* shebang = listMap.prepend("Shebang");
+    Node* endOfStory = listMap.append("End of story");
+    
+    assert(listMap.byEntry().equal([Entry("Shebang"), Entry("Start", "Slow"), Entry("Finish", "Bad"), Entry("End of story")]));
+    
+    Node* mid = listMap.addAfter(listMap.getNode("Start"), "Mid");
+    Node* average = listMap.addBefore(listMap.getNode("Finish"), "Average");
+    assert(listMap.byEntry().equal([Entry("Shebang"), Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad"), Entry("End of story")]));
+    
+    listMap.remove(shebang);
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad"), Entry("End of story")]));
+    
+    listMap.remove(endOfStory);
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
+    
+    listMap.insertAfter(mid, "Center", "Universe");
+    listMap.insertBefore(average, "Focus", "Cosmos");
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average"), Entry("Finish", "Bad")]));
+    
+    listMap.removeFront();
+    assert(listMap.byEntry().equal([Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average"), Entry("Finish", "Bad")]));
+    listMap.removeBack();
+    
+    assert(listMap.byEntry().equal([Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average")]));
+    
+    assert(listMap.byEntry().retro.equal([Entry("Average"), Entry("Focus", "Cosmos"), Entry("Center", "Universe"), Entry("Mid")]));
+    
+    auto byEntry = listMap.byEntry();
+    Entry entry = byEntry.front;
+    assert(entry.value == "Mid");
+    assert(!entry.hasKey());
+    
+    byEntry.popFront();
+    assert(byEntry.equal([Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average")]));
+    byEntry.popBack();
+    assert(byEntry.equal([Entry("Center", "Universe"), Entry("Focus", "Cosmos")]));
+    
+    entry = byEntry.back;
+    assert(entry.key == "Focus");
+    assert(entry.value == "Cosmos");
+    assert(entry.hasKey());
+    
+    auto saved = byEntry.save;
+    
+    byEntry.popFront();
+    assert(byEntry.equal([Entry("Focus", "Cosmos")]));
+    byEntry.popBack();
+    assert(byEntry.empty);
+    
+    assert(saved.equal([Entry("Center", "Universe"), Entry("Focus", "Cosmos")]));
+    saved.popBack();
+    assert(saved.equal([Entry("Center", "Universe")]));
+    saved.popFront();
+    assert(saved.empty);
+    
+    static void checkConst(ref const TestListMap listMap)
+    {
+        assert(listMap.byEntry().equal([Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average")]));
+    }
+    checkConst(listMap);
 }
 
 /**
@@ -82,18 +750,15 @@ struct IniLikeLine
         return _type == Type.KeyValue ? _second : null;
     }
     
+    @nogc @safe string value(string newValue) nothrow pure {
+        return _second = newValue;
+    }
+    
     /**
      * Get type of line.
      */
     @nogc @safe Type type() const nothrow pure {
         return _type;
-    }
-    
-    /**
-     * Assign Type.None to line.
-     */
-    @nogc @safe void makeNone() nothrow pure {
-        _type = Type.None;
     }
 private:
     string _first;
@@ -104,7 +769,7 @@ private:
 
 /**
  * This class represents the group (section) in the ini-like file. 
- * You can create and use instances of this class only in the context of $(B IniLikeFile) or its derivatives.
+ * You can create and use instances of this class only in the context of $(D IniLikeFile) or its derivatives.
  * Note: Keys are case-sensitive.
  */
 class IniLikeGroup
@@ -120,29 +785,26 @@ public:
     /**
      * Returns: The value associated with the key.
      * Note: The value is not unescaped automatically.
-     * Warning: It's an error to access nonexistent value.
+     * Prerequisites: Accessed key must exist.
      * See_Also: $(D value), $(D readEntry)
      */
     @nogc @safe final string opIndex(string key) const nothrow pure {
-        auto i = key in _indices;
-        assert(_values[*i].type == IniLikeLine.Type.KeyValue);
-        assert(_values[*i].key == key);
-        return _values[*i].value;
+        return _listMap.getNode(key).value.value;
     }
     
-    private @safe final string setKeyValueImpl(string key, string value) nothrow pure
+    private @safe final string setKeyValueImpl(string key, string value) 
     in {
         assert(!value.needEscaping);
     }
     body {
-        auto pick = key in _indices;
-        if (pick) {
-            return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
+        import std.stdio;
+        auto node = _listMap.getNode(key);
+        if (node) {
+            node.value = IniLikeLine.fromKeyValue(key, value);
         } else {
-            _indices[key] = _values.length;
-            _values ~= IniLikeLine.fromKeyValue(key, value);
-            return value;
+            _listMap.insertBack(key, IniLikeLine.fromKeyValue(key, value));
         }
+        return value;
     }
     
     /**
@@ -171,7 +833,7 @@ public:
      * Tell if group contains value associated with the key.
      */
     @nogc @safe final bool contains(string key) const nothrow pure {
-        return value(key) !is null;
+        return _listMap.getNode(key) !is null;
     }
     
     /**
@@ -180,15 +842,13 @@ public:
      * Note: The value is not unescaped automatically.
      * See_Also: $(D readEntry), $(D localizedValue)
      */
-    @nogc @safe final string value(string key, string defaultValue = null) const nothrow pure {
-        auto pick = key in _indices;
-        if (pick) {
-            if(_values[*pick].type == IniLikeLine.Type.KeyValue) {
-                assert(_values[*pick].key == key);
-                return _values[*pick].value;
-            }
+    @nogc @safe final string value(string key) const nothrow pure {
+        auto node = _listMap.getNode(key);
+        if (node) {
+            return node.value.value;
+        } else {
+            return null;
         }
-        return defaultValue;
     }
     
     /**
@@ -310,12 +970,7 @@ public:
      * Returns: true if entry was removed, false otherwise.
      */
     @safe final bool removeEntry(string key) nothrow pure {
-        auto pick = key in _indices;
-        if (pick) {
-            _values[*pick].makeNone();
-            return true;
-        }
-        return false;
+        return _listMap.remove(key);
     }
     
     ///ditto, but remove entry by localized key
@@ -324,70 +979,12 @@ public:
     }
     
     /**
-     * Remove all entries satisying ToDelete function. 
-     * ToDelete should be function accepting string key and value and return boolean.
-     */
-    final void removeEntries(alias ToDelete)()
-    {
-        IniLikeLine[] values;
-        
-        foreach(line; _values) {
-            if (line.type == IniLikeLine.Type.KeyValue && ToDelete(line.key, line.value)) {
-                _indices.remove(line.key);
-                continue;
-            }
-            if (line.type == IniLikeLine.Type.None) {
-                continue;
-            }
-            values ~= line;
-        }
-        
-        _values = values;
-        foreach(i, line; _values) {
-            if (line.type == IniLikeLine.Type.KeyValue) {
-                _indices[line.key] = i;
-            }
-        }
-    }
-    
-    ///
-    unittest
-    {
-        string contents = 
-`[Group]
-Key1=Value1
-Name=Value
-# Comment
-ToRemove=Value
-Key2=Value2
-NameGeneric=Value
-Key3=Value3`;
-        auto ilf = new IniLikeFile(iniLikeStringReader(contents));
-        assert(ilf.group("Group").removeEntry("ToRemove"));
-        assert(!ilf.group("Group").removeEntry("NonExistent"));
-        ilf.group("Group").removeEntries!(function bool(string key, string value) {
-            return key.startsWith("Name");
-        })();
-        
-        auto group = ilf.group("Group");
-        
-        assert(group.value("Key1") == "Value1");
-        assert(group.value("Key2") == "Value2");
-        assert(group.value("Key3") == "Value3");
-        assert(equal(group.byIniLine(), [
-                    IniLikeLine.fromKeyValue("Key1", "Value1"), IniLikeLine.fromComment("# Comment"), 
-                    IniLikeLine.fromKeyValue("Key2", "Value2"), IniLikeLine.fromKeyValue("Key3", "Value3")]));
-        assert(!group.contains("Name"));
-        assert(!group.contains("NameGeneric"));
-    }
-    
-    /**
      * Iterate by Key-Value pairs. Values are left in escaped form.
      * Returns: Range of Tuple!(string, "key", string, "value").
      * See_Also: $(D value), $(D localizedValue)
      */
     @nogc @safe final auto byKeyValue() const nothrow {
-        return staticByKeyValue(_values);
+        return staticByKeyValue(_listMap.byNode);
     }
     
     /**
@@ -395,9 +992,10 @@ Key3=Value3`;
      * Returns: Empty range of Tuple!(string, "key", string, "value").
      */
     @nogc @safe static auto emptyByKeyValue() nothrow {
-        return staticByKeyValue((IniLikeLine[]).init);
+        const ListMap!(string, IniLikeLine) listMap;
+        return staticByKeyValue(listMap.byNode);
     }
-    
+
     ///
     unittest
     {
@@ -406,8 +1004,8 @@ Key3=Value3`;
         static assert(is(typeof(emptyByKeyValue()) == typeof(group.byKeyValue()) ));
     }
     
-    private @nogc @safe static auto staticByKeyValue(const(IniLikeLine)[] values) nothrow {
-        return values.filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
+    private @nogc @safe static auto staticByKeyValue(Range)(Range nodes) nothrow {
+        return nodes.map!(node => node.value).filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
     }
     
     /**
@@ -419,10 +1017,10 @@ Key3=Value3`;
     }
     
     /**
-     * Returns: Range of $(B IniLikeLine)s included in this group.
+     * Returns: Range of $(D IniLikeLine)s included in this group.
      */
     @trusted final auto byIniLine() const {
-        return _values.filter!(v => v.type != IniLikeLine.Type.None);
+        return _listMap.byNode.map!(node => node.value);
     }
     
     /**
@@ -431,8 +1029,9 @@ Key3=Value3`;
      * See_Also: $(D byIniLine), $(D prependComment)
      */
     @safe final string appendComment(string comment) nothrow pure {
-        _values ~= IniLikeLine.fromComment(makeComment(comment));
-        return _values[$-1].comment();
+        comment = makeComment(comment);
+        _listMap.append(IniLikeLine.fromComment(comment));
+        return comment;
     }
     
     /**
@@ -441,8 +1040,9 @@ Key3=Value3`;
      * See_Also: $(D byIniLine), $(D appendComment)
      */
     @safe final string prependComment(string comment) nothrow pure {
-        _values = IniLikeLine.fromComment(makeComment(comment)) ~ _values;
-        return _values[0].comment();
+        comment = makeComment(comment);
+        _listMap.prepend(IniLikeLine.fromComment(comment));
+        return comment;
     }
     
 protected:
@@ -542,8 +1142,7 @@ protected:
     }
     
 private:
-    size_t[string] _indices;
-    IniLikeLine[] _values;
+    ListMap!(string, IniLikeLine) _listMap;
     string _name;
 }
 
@@ -810,13 +1409,13 @@ public:
     
     /**
      * Get group by name.
-     * Returns: IniLikeGroup instance associated with groupName or $(B null) if not found.
+     * Returns: IniLikeGroup instance associated with groupName or null if not found.
      * See_Also: $(D byGroup)
      */
     @nogc @safe final inout(IniLikeGroup) group(string groupName) nothrow inout pure {
-        auto pick = groupName in _groupIndices;
+        auto pick = _listMap.getNode(groupName);
         if (pick) {
-            return _groups[*pick];
+            return pick.value;
         }
         return null;
     }
@@ -834,8 +1433,7 @@ public:
         
         auto iniLikeGroup = createGroup(groupName);
         if (iniLikeGroup !is null) {
-            _groupIndices[groupName] = _groups.length;
-            _groups ~= iniLikeGroup;
+            _listMap.insertBack(groupName, iniLikeGroup);
         }
         return iniLikeGroup;
     }
@@ -846,27 +1444,21 @@ public:
      * See_Also: $(D addGroup), $(D group)
      */
     @safe bool removeGroup(string groupName) nothrow {
-        auto pick = groupName in _groupIndices;
-        if (pick) {
-            _groups[*pick] = null;
-            return true;
-        } else {
-            return false;
-        }
+        return _listMap.remove(groupName);
     }
     
     /**
      * Range of groups in order how they were defined in file.
      * See_Also: $(D group)
      */
-    @nogc @safe final auto byGroup() const nothrow {
-        return _groups.filter!(f => f !is null);
+    @nogc @safe final auto byGroup() inout nothrow {
+        return _listMap.byNode().map!(node => node.value);
     }
     
     ///ditto
-    @nogc @safe final auto byGroup() nothrow {
-        return _groups.filter!(f => f !is null);
-    }
+//     @nogc @safe final auto byGroup() nothrow {
+//         return _listMap.byNode().map!(node => node.value);
+//     }
     
     
     /**
@@ -984,8 +1576,7 @@ public:
     
 private:
     string _fileName;
-    size_t[string] _groupIndices;
-    IniLikeGroup[] _groups;
+    ListMap!(string, IniLikeGroup, 8) _listMap;
     string[] _leadingComments;
 }
 
@@ -994,6 +1585,7 @@ unittest
 {
     import std.file;
     import std.path;
+    import std.stdio;
     
     string contents = 
 `# The first comment
@@ -1049,7 +1641,7 @@ Comment=Manage files
     
     firstEntry.writeEntry("NeedEscape", "i\rneed\nescape");
     assert(firstEntry.value("NeedEscape") == `i\rneed\nescape`);
-    firstEntry.writeEntry("NeedEscape", "мне\rнужно\nэкранирование");
+    firstEntry.writeEntry("NeedEscape", "мне\rнужно\nэкранирование", "ru");
     assert(firstEntry.localizedValue("NeedEscape", "ru") == `мне\rнужно\nэкранирование`);
     
     firstEntry["GenericName"] = "Manager of files";
@@ -1099,10 +1691,12 @@ Comment=Manage files
     
     assertThrown!IniLikeException(ilf.addGroup(""));
     
+    import std.range : isForwardRange;
+    
     const IniLikeFile cilf = ilf;
-    static assert(is(typeof(cilf.byGroup())));
-    static assert(is(typeof(cilf.group("First Entry").byKeyValue())));
-    static assert(is(typeof(cilf.group("First Entry").byIniLine())));
+    static assert(isForwardRange!(typeof(cilf.byGroup())));
+    static assert(isForwardRange!(typeof(cilf.group("First Entry").byKeyValue())));
+    static assert(isForwardRange!(typeof(cilf.group("First Entry").byIniLine())));
     
     contents = 
 `[Group]
