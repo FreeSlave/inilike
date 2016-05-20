@@ -12,12 +12,12 @@
 
 module inilike.file;
 
-private import std.exception;
+private {
+    import std.exception;
+    import inilike.common;
+}
 
-import inilike.common;
 public import inilike.range;
-
-private import std.typecons : Rebindable, rebindable;
 
 private @trusted string makeComment(string line) pure nothrow
 {
@@ -29,6 +29,11 @@ private @trusted string makeComment(string line) pure nothrow
     }
     line = line.replace("\n", " ");
     return line;
+}
+
+private @trusted IniLikeLine makeCommentLine(string line) pure nothrow
+{
+    return IniLikeLine.fromComment(makeComment(line));
 }
 
 /**
@@ -438,6 +443,10 @@ private:
         assert(node !is null);
     } 
     body {
+        if (node is toPut) {
+            return;
+        }
+        
         toPut.prev = node.prev;
         if (toPut.prev) {
             toPut.prev.next = toPut;
@@ -456,6 +465,10 @@ private:
         assert(node !is null);
     }
     body {
+        if (node is toPut) {
+            return;
+        }
+        
         toPut.next = node.next;
         if (toPut.next) {
             toPut.next.prev = toPut;
@@ -750,10 +763,6 @@ struct IniLikeLine
         return _type == Type.KeyValue ? _second : null;
     }
     
-    @nogc @safe string value(string newValue) nothrow pure {
-        return _second = newValue;
-    }
-    
     /**
      * Get type of line.
      */
@@ -774,6 +783,9 @@ private:
  */
 class IniLikeGroup
 {
+private:
+    alias ListMap!(string, IniLikeLine) LineListMap;
+    
 public:
     /**
      * Create instance on IniLikeGroup and set its name to groupName.
@@ -811,7 +823,7 @@ public:
      * Insert new value or replaces the old one if value associated with key already exists.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
      * Returns: Inserted/updated value or null string if key was not added.
-     * Throws: IniLikeEntryException if key or value is not valid or value needs to be escaped.
+     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
      * See_Also: $(D writeEntry)
      */
     @safe final string opIndexAssign(string value, string key) {
@@ -958,7 +970,7 @@ public:
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
-     * Throws: IniLikeEntryException if key or value is not valid or value needs to be escaped.
+     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
      * See_Also: $(D writeEntry)
      */
     @safe final void setLocalizedValue(string key, string locale, string value) {
@@ -974,14 +986,19 @@ public:
     }
     
     ///ditto, but remove entry by localized key
-    @safe final void removeEntry(string key, string locale) nothrow pure {
-        removeEntry(localizedKey(key, locale));
+    @safe final bool removeEntry(string key, string locale) nothrow pure {
+        return removeEntry(localizedKey(key, locale));
+    }
+    
+    ///ditto, but remove entry by node.
+    @safe final void removeEntry(LineNode node) nothrow pure {
+        _listMap.remove(node.node);
     }
     
     /**
      * Iterate by Key-Value pairs. Values are left in escaped form.
      * Returns: Range of Tuple!(string, "key", string, "value").
-     * See_Also: $(D value), $(D localizedValue)
+     * See_Also: $(D value), $(D localizedValue), $(D byIniLine)
      */
     @nogc @safe final auto byKeyValue() const nothrow {
         return staticByKeyValue(_listMap.byNode);
@@ -1018,31 +1035,116 @@ public:
     
     /**
      * Returns: Range of $(D IniLikeLine)s included in this group.
+     * See_Also: $(D byNode), $(D byKeyValue)
      */
     @trusted final auto byIniLine() const {
         return _listMap.byNode.map!(node => node.value);
     }
     
     /**
-     * Add comment line into the group.
-     * Returns: Line added as comment.
-     * See_Also: $(D byIniLine), $(D prependComment)
+     * Wrapper for internal ListMap node.
      */
-    @safe final string appendComment(string comment) nothrow pure {
-        comment = makeComment(comment);
-        _listMap.append(IniLikeLine.fromComment(comment));
-        return comment;
+    static struct LineNode
+    {
+    private:
+        LineListMap.Node* node;
+        string groupName;
+    public:
+        /**
+         * Get key of node.
+         */
+        @nogc @trusted string key() const pure nothrow {
+            return node.key;
+        }
+        
+        /**
+         * Get IniLikeLine pointed by node.
+         */
+        @nogc @trusted IniLikeLine line() const pure nothrow {
+            if (isNull()) {
+                return IniLikeLine.init;
+            } else {
+                return node.value;
+            }
+        }
+        
+        @trusted void setValue(string newValue) pure {
+            auto type = node.value.type;
+            if (type == IniLikeLine.Type.KeyValue) {
+                node.value = IniLikeLine.fromKeyValue(node.value.key, newValue);
+            } else if (type == IniLikeLine.Type.Comment) {
+                node.value = makeCommentLine(newValue);
+            } else {
+                
+            }
+        }
+        
+        @nogc @safe bool isNull() const pure nothrow {
+            return node is null;
+        }
+    }
+    
+    private @trusted auto lineNode(LineListMap.Node* node) pure nothrow {
+        return LineNode(node, groupName());
+    }
+    
+    /**
+     * See_Also: $(D getNode), $(D byIniLine)
+     */
+    @trusted auto byNode() {
+        import std.algorithm : map;
+        return _listMap.byNode().map!(node => lineNode(node));
+    }
+    
+    /**
+     * See_Also: $(D byNode)
+     */
+    @trusted auto getNode(string key) {
+        return lineNode(_listMap.getNode(key));
+    }
+    
+    /**
+     * Add comment line into the group.
+     * Returns: Added LineNode.
+     * See_Also: $(D byIniLine), $(D prependComment), $(D addCommentBefore), $(D addCommentAfter)
+     */
+    @safe final auto appendComment(string comment) nothrow pure {
+        return lineNode(_listMap.append(makeCommentLine(comment)));
     }
     
     /**
      * Add comment line at the start of group (after group header, before any key-value pairs).
-     * Returns: Line added as comment.
-     * See_Also: $(D byIniLine), $(D appendComment)
+     * Returns: Added LineNode.
+     * See_Also: $(D byIniLine), $(D appendComment), $(D addCommentBefore), $(D addCommentAfter)
      */
-    @safe final string prependComment(string comment) nothrow pure {
-        comment = makeComment(comment);
-        _listMap.prepend(IniLikeLine.fromComment(comment));
-        return comment;
+    @safe final auto prependComment(string comment) nothrow pure {
+        return lineNode(_listMap.prepend(makeCommentLine(comment)));
+    }
+    
+    /**
+     * Add comment before some node.
+     * Returns: Added LineNode.
+     * See_Also: $(D byIniLine), $(D appendComment), $(D prependComment), $(D getNode), $(D addCommentAfter)
+     */
+    @trusted final auto addCommentBefore(LineNode node, string comment) nothrow pure
+    in {
+        assert(!node.isNull());
+    }
+    body {
+        return _listMap.addBefore(node.node, makeCommentLine(comment));
+    }
+    
+    /**
+     * Add comment after some node.
+     * Returns: Added LineNode.
+     * See_Also: $(D byIniLine), $(D appendComment), $(D prependComment), $(D getNode), $(D addCommentBefore)
+     */
+    @trusted final auto addCommentAfter(LineNode node, string comment) nothrow pure
+    in {
+        assert(!node.isNull());
+    }
+    body {
+        return _listMap.addAfter(node.node, makeCommentLine(comment));
     }
     
 protected:
@@ -1142,7 +1244,7 @@ protected:
     }
     
 private:
-    ListMap!(string, IniLikeLine) _listMap;
+    LineListMap _listMap;
     string _name;
 }
 
@@ -1455,12 +1557,6 @@ public:
         return _listMap.byNode().map!(node => node.value);
     }
     
-    ///ditto
-//     @nogc @safe final auto byGroup() nothrow {
-//         return _listMap.byNode().map!(node => node.value);
-//     }
-    
-    
     /**
      * Save object to the file using .ini-like format.
      * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
@@ -1665,12 +1761,42 @@ Comment=Manage files
     assert(ilf.group("Another Group")["Name"] == "Commander");
     assert(equal(ilf.group("Another Group").byKeyValue(), [ keyValueTuple("Name", "Commander"), keyValueTuple("Comment", "Manage files") ]));
     
-    assert(ilf.group("Another Group").appendComment("The lastest comment"));
-    assert(ilf.group("Another Group").prependComment("The first comment"));
+    auto latestCommentNode = ilf.group("Another Group").appendComment("The latest comment");
+    
+    assert(latestCommentNode.line.comment == "#The latest comment");
+    assert(ilf.group("Another Group").prependComment("The first comment").line.comment == "#The first comment");
     
     assert(equal(
         ilf.group("Another Group").byIniLine(), 
-        [IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment"), IniLikeLine.fromComment("#The lastest comment")]
+        [IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment"), IniLikeLine.fromComment("#The latest comment")]
+    ));
+    
+    auto nameLineNode = ilf.group("Another Group").getNode("Name");
+    assert(nameLineNode.line.value == "Commander");
+    auto commentLineNode = ilf.group("Another Group").getNode("Comment");
+    assert(commentLineNode.line.value == "Manage files");
+    
+    ilf.group("Another Group").addCommentAfter(nameLineNode, "Middle comment");
+    ilf.group("Another Group").addCommentBefore(commentLineNode, "Average comment");
+    
+    assert(equal(
+        ilf.group("Another Group").byIniLine(), 
+        [
+            IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), 
+            IniLikeLine.fromComment("#Middle comment"), IniLikeLine.fromComment("#Average comment"), 
+            IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment"), IniLikeLine.fromComment("#The latest comment")
+        ]
+    ));
+    
+    ilf.group("Another Group").removeEntry(latestCommentNode);
+    
+    assert(equal(
+        ilf.group("Another Group").byIniLine(), 
+        [
+            IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), 
+            IniLikeLine.fromComment("#Middle comment"), IniLikeLine.fromComment("#Average comment"), 
+            IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment")
+        ]
     ));
     
     assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry", "Another Group"]));
