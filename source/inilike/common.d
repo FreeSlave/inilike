@@ -149,15 +149,57 @@ unittest
     assert(parseKeyValue("Key=Value".dup) == tuple("Key".dup, "Value".dup));
 }
 
+private @nogc @safe bool simpleCanFind(in char[] str, char c) pure nothrow
+{
+    for (size_t i=0; i<str.length; ++i) {
+        if (str[i] == c) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Test whether the string is valid key, i.e. does not need escaping, is not a comment and not empty string.
+ */
+@nogc @safe bool isValidKey(in char[] key) pure nothrow
+{
+    if (key.empty || key.simpleStripLeft.simpleStripRight.empty) {
+        return false;
+    }
+    if (key.isComment || key.simpleCanFind('=') || key.needEscaping()) {
+        return false;
+    }
+    return true;
+}
+
+///
+unittest
+{
+    assert(isValidKey("Valid key"));
+    assert(!isValidKey(""));
+    assert(!isValidKey("    "));
+    assert(!isValidKey("Sneaky\nKey"));
+    assert(!isValidKey("# Sneaky key"));
+    assert(!isValidKey("Sneaky=key"));
+}
+
 /**
 * Test whether the string is valid key in terms of Desktop File Specification. Not actually used in inilike.file.IniLikeFile, but can be used in derivatives.
 * Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html, Basic format of the file)
-* Note: this function automatically separate key from locale. It does not check validity of the locale itself.
+* Note: this function automatically separate key from locale. Locale is validated against isValidKey.
+* See_Also: $(D isValidKey)
 */
-@nogc @safe bool isValidKey(String)(String key) pure nothrow if (isSomeString!String && is(ElementEncodingType!String : char)) {
-    key = separateFromLocale(key)[0];
+@nogc @safe bool isValidDesktopFileKey(in char[] desktopKey) pure nothrow {
+    auto t = separateFromLocale(desktopKey);
+    auto key = t[0];
+    auto locale = t[1];
     
-    @nogc @safe static bool isValidKeyChar(ElementType!String c) pure nothrow {
+    if (locale.length && !isValidKey(locale)) {
+        return false;
+    }
+    
+    @nogc @safe static bool isValidDesktopFileKeyChar(char c) pure nothrow {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
     }
     
@@ -165,7 +207,7 @@ unittest
         return false;
     }
     for (size_t i = 0; i<key.length; ++i) {
-        if (!isValidKeyChar(key[i])) {
+        if (!isValidDesktopFileKeyChar(key[i])) {
             return false;
         }
     }
@@ -175,11 +217,12 @@ unittest
 ///
 unittest
 {
-    assert(isValidKey("Generic-Name"));
-    assert(isValidKey("Generic-Name[ru_RU]"));
-    assert(!isValidKey("Name$"));
-    assert(!isValidKey(""));
-    assert(!isValidKey("[ru_RU]"));
+    assert(isValidDesktopFileKey("Generic-Name"));
+    assert(isValidDesktopFileKey("Generic-Name[ru_RU]"));
+    assert(!isValidDesktopFileKey("Name$"));
+    assert(!isValidDesktopFileKey(""));
+    assert(!isValidDesktopFileKey("[ru_RU]"));
+    assert(!isValidDesktopFileKey("Name[ru\nRU]"));
 }
 
 /**

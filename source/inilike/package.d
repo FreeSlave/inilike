@@ -40,7 +40,7 @@ unittest
         }
     protected:
         @trusted override void validateKey(string key, string value) const {
-            if (!isValidKey(key)) {
+            if (!isValidDesktopFileKey(key)) {
                 throw new IniLikeEntryException("key is invalid", groupName(), key, value);
             }
         }
@@ -94,7 +94,7 @@ unittest
         @trusted override void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
         {
             if (currentGroup) {
-                if (!isValidKey(key) && (_options & ReadOptions.ignoreInvalidKeys)) {
+                if (!isValidDesktopFileKey(key) && (_options & ReadOptions.ignoreInvalidKeys)) {
                     return;
                 }
                 if (currentGroup.contains(key)) {
@@ -161,6 +161,13 @@ Key=Value
     assert(df.desktopEntry() !is null);
     assert(df.leadingComments().empty);
     assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value")]));
+    
+    assertThrown(df.desktopEntry().writeEntry("$Invalid", "Valid value"));
+    
+    //auto entryException = collectException!IniLikeEntryException(df.desktopEntry().writeEntry("$Invalid", "Valid value"));
+    //assert(entryException !is null);
+    df.desktopEntry().writeEntry("$Invalid", "Valid value", Yes.allowInvalidKey);
+    assert(df.desktopEntry().value("$Invalid") == "Valid value");
     
     df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.preserveComments);
     assert(equal(df.leadingComments(), ["# First comment"]));

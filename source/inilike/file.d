@@ -130,6 +130,10 @@ struct ListMap(K,V, size_t chunkSize = 32)
      */
     void moveToFront(Node* toMove)
     {
+        if (_head is toMove) {
+            return;
+        }
+        
         pullOut(toMove);
         putToFront(toMove);
     }
@@ -139,6 +143,10 @@ struct ListMap(K,V, size_t chunkSize = 32)
      */
     void moveToBack(Node* toMove)
     {
+        if (_tail is toMove) {
+            return;
+        }
+        
         pullOut(toMove);
         putToBack(toMove);
     }
@@ -146,17 +154,25 @@ struct ListMap(K,V, size_t chunkSize = 32)
     /**
      * Move node to the location before other node.
      */
-    void moveBefore(Node* node, Node* toMove) {
+    void moveBefore(Node* other, Node* toMove) {
+        if (other is toMove) {
+            return;
+        }
+        
         pullOut(toMove);
-        putBefore(node, toMove);
+        putBefore(other, toMove);
     }
     
     /**
      * Move node to the location after other node.
      */
-    void moveAfter(Node* node, Node* toMove) {
+    void moveAfter(Node* other, Node* toMove) {
+        if (other is toMove) {
+            return;
+        }
+        
         pullOut(toMove);
-        putAfter(node, toMove);
+        putAfter(other, toMove);
     }
     
     /**
@@ -363,8 +379,6 @@ struct ListMap(K,V, size_t chunkSize = 32)
                     return Entry!T(_value);
                 }
             }
-            
-            
         }
     }
     
@@ -443,10 +457,6 @@ private:
         assert(node !is null);
     } 
     body {
-        if (node is toPut) {
-            return;
-        }
-        
         toPut.prev = node.prev;
         if (toPut.prev) {
             toPut.prev.next = toPut;
@@ -465,10 +475,6 @@ private:
         assert(node !is null);
     }
     body {
-        if (node is toPut) {
-            return;
-        }
-        
         toPut.next = node.next;
         if (toPut.next) {
             toPut.next.prev = toPut;
@@ -663,6 +669,16 @@ unittest
     listMap.remove(endOfStory);
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
     
+    listMap.moveToFront(listMap.getNode("Start"));
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
+    listMap.moveToBack(listMap.getNode("Finish"));
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
+    
+    listMap.moveBefore(listMap.getNode("Start"), listMap.getNode("Start"));
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
+    listMap.moveAfter(listMap.getNode("Finish"), listMap.getNode("Finish"));
+    assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
+    
     listMap.insertAfter(mid, "Center", "Universe");
     listMap.insertBefore(average, "Focus", "Cosmos");
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average"), Entry("Finish", "Bad")]));
@@ -827,8 +843,7 @@ public:
      * See_Also: $(D writeEntry)
      */
     @safe final string opIndexAssign(string value, string key) {
-        validateKeyAndValue(key, value);
-        return setKeyValueImpl(key, value);
+        return setValue(key, value);
     }
     
     /**
@@ -837,8 +852,7 @@ public:
      * See_Also: $(D setLocalizedValue), $(D localizedValue), $(D writeEntry)
      */
     @safe final string opIndexAssign(string value, string key, string locale) {
-        string keyName = localizedKey(key, locale);
-        return this[keyName] = value;
+        return setLocalizedValue(key, locale, value);
     }
     
     /**
@@ -852,7 +866,7 @@ public:
      * Get value by key.
      * Returns: The value associated with the key, or defaultValue if group does not contain such item.
      * Note: The value is not unescaped automatically.
-     * See_Also: $(D readEntry), $(D localizedValue)
+     * See_Also: $(D setValue), $(D localizedValue), $(D readEntry)
      */
     @nogc @safe final string value(string key) const nothrow pure {
         auto node = _listMap.getNode(key);
@@ -861,6 +875,25 @@ public:
         } else {
             return null;
         }
+    }
+    
+    /**
+     * Set value associated with key.
+     * Params:
+     *  key = Key to associate value with.
+     *  value = Value to set.
+     *  allowInvalidKey = Allow invalid key. Basic format validation is still applied to preserve file format consistency.
+     * See_Also: $(D value), $(D setLocalizedValue), $(D writeEntry)
+     */
+    @safe final string setValue(string key, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey)
+    {
+        validateValue(key, value);
+        if (allowInvalidKey) {
+            validateKeyImpl(key, value, _name);
+        } else {
+            validateKey(key, value);
+        }
+        return setKeyValueImpl(key, value);
     }
     
     /**
@@ -879,13 +912,17 @@ public:
     /**
      * Set value by key. This function automatically escape the value (you should not escape value yourself) when writing it.
      * Throws: $(D IniLikeEntryException) if key or value is not valid.
-     * See_Also: $(D readEntry)
+     * See_Also: $(D readEntry), $(D setValue)
      */
-    @safe final string writeEntry(string key, string value, string locale = null) {
+    @safe final string writeEntry(string key, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey) {
         value = value.escapeValue();
-        validateKeyAndValue(key, value);
-        string keyName = localizedKey(key, locale);
-        return setKeyValueImpl(keyName, value);
+        return setValue(key, value, allowInvalidKey);
+    }
+    
+    ///ditto, localized version
+    @safe final string writeEntry(string key, string locale, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey) {
+        value = value.escapeValue();
+        return setLocalizedValue(key, locale, value, allowInvalidKey);
     }
     
     /**
@@ -894,12 +931,13 @@ public:
      *  key = Non-localized key.
      *  locale = Locale in intereset.
      *  nonLocaleFallback = Allow fallback to non-localized version.
-     * Returns: The localized value associated with key and locale, 
-     * or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
+     * Returns: 
+     *  The localized value associated with key and locale, 
+     *  or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
      * Note: The value is not unescaped automatically.
-     * See_Also: $(D value), $(D readEntry)
+     * See_Also: $(D setLocalizedValue), $(D value), $(D readEntry)
      */
-    @safe final string localizedValue(string key, string locale, bool nonLocaleFallback = true) const nothrow pure {
+    @safe final string localizedValue(string key, string locale, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
         //Any ideas how to get rid of this boilerplate and make less allocations?
         const t = parseLocaleName(locale);
         auto lang = t.lang;
@@ -964,17 +1002,17 @@ public:
         assert(group.localizedValue("Name", "fr_FR.UTF-8") == "Programmeur");
         assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
         assert(group.localizedValue("GenericName", "fr_FR") == "Program");
-        assert(group.localizedValue("GenericName", "fr_FR", false) is null);
+        assert(group.localizedValue("GenericName", "fr_FR", No.nonLocaleFallback) is null);
     }
     
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
      * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
-     * See_Also: $(D writeEntry)
+     * See_Also: $(D localizedValue), $(D setValue), $(D writeEntry)
      */
-    @safe final void setLocalizedValue(string key, string locale, string value) {
-        this[key, locale] = value;
+    @safe final string setLocalizedValue(string key, string locale, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey) {
+        return setValue(localizedKey(key, locale), value, allowInvalidKey);
     }
     
     /**
@@ -1061,11 +1099,7 @@ public:
          * Get IniLikeLine pointed by node.
          */
         @nogc @trusted IniLikeLine line() const pure nothrow {
-            if (isNull()) {
-                return IniLikeLine.init;
-            } else {
-                return node.value;
-            }
+            return node.value;
         }
         
         @trusted void setValue(string newValue) pure {
@@ -1074,8 +1108,6 @@ public:
                 node.value = IniLikeLine.fromKeyValue(node.value.key, newValue);
             } else if (type == IniLikeLine.Type.Comment) {
                 node.value = makeCommentLine(newValue);
-            } else {
-                
             }
         }
         
@@ -1089,6 +1121,7 @@ public:
     }
     
     /**
+     * Iterate over nodes of internal list.
      * See_Also: $(D getNode), $(D byIniLine)
      */
     @trusted auto byNode() {
@@ -1097,9 +1130,10 @@ public:
     }
     
     /**
+     * Get internal list node for key.
      * See_Also: $(D byNode)
      */
-    @trusted auto getNode(string key) {
+    @trusted final auto getNode(string key) {
         return lineNode(_listMap.getNode(key));
     }
     
@@ -1147,6 +1181,39 @@ public:
         return _listMap.addAfter(node.node, makeCommentLine(comment));
     }
     
+    @trusted final void moveLineToFront(LineNode toMove) nothrow pure {
+        _listMap.moveToFront(toMove.node);
+    }
+    
+    @trusted final void moveLineToBack(LineNode toMove) nothrow pure {
+        _listMap.moveToBack(toMove.node);
+    }
+    
+    @trusted final void moveLineBefore(LineNode node, LineNode toMove) nothrow pure {
+        _listMap.moveBefore(node.node, toMove.node);
+    }
+    
+    @trusted final void moveLineAfter(LineNode node, LineNode toMove) nothrow pure {
+        _listMap.moveAfter(node.node, toMove.node);
+    }
+    
+private:
+    @trusted static void validateKeyImpl(string key, string value, string groupName)
+    {
+        if (key.empty || key.strip.empty) {
+            throw new IniLikeEntryException("key must not be empty", groupName, key, value);
+        }
+        if (key.isComment()) {
+            throw new IniLikeEntryException("key must not start with #", groupName, key, value);
+        }
+        if (key.canFind('=')) {
+            throw new IniLikeEntryException("key must not have '=' character in it", groupName, key, value);
+        }
+        if (key.needEscaping()) {
+            throw new IniLikeEntryException("key must not contain new line characters", groupName, key, value);
+        }
+    }
+    
 protected:
     /**
      * Validate key before setting value to key for this group and throw exception if not valid.
@@ -1157,20 +1224,12 @@ protected:
      *  value = value that is being set to key.
      * Throws: $(D IniLikeEntryException) if either key is invalid.
      * See_Also: $(D validateValue)
+     * Note: 
+     *  Implementer should ensure that their implementation still validates key for format consistency (i.e. no new line characters, etc.).
+     *  If not sure, just call super.validateKey(key, value) in your implementation.
      */
     @trusted void validateKey(string key, string value) const {
-        if (key.empty || key.strip.empty) {
-            throw new IniLikeEntryException("key must not be empty", _name, key, value);
-        }
-        if (key.isComment()) {
-            throw new IniLikeEntryException("key must not start with #", _name, key, value);
-        }
-        if (key.canFind('=')) {
-            throw new IniLikeEntryException("key must not have '=' character in it", _name, key, value);
-        }
-        if (key.needEscaping()) {
-            throw new IniLikeEntryException("key must not contain new line characters", _name, key, value);
-        }
+        validateKeyImpl(key, value, _name);
     }
     
     ///
@@ -1233,16 +1292,6 @@ protected:
         assert(entryException.key == "Key");
         assert(entryException.value == "New\nline");
     }
-    
-    /**
-     * Utility function that calls validateKey and validateValue.
-     * See_Also: $(D validateKey), $(D validateValue)
-     */
-    @safe final void validateKeyAndValue(string key, string value) const {
-        validateKey(key, value);
-        validateValue(key, value);
-    }
-    
 private:
     LineListMap _listMap;
     string _name;
@@ -1670,6 +1719,44 @@ public:
         _leadingComments = null;
     }
     
+    @trusted final bool moveGroupToFront(string toMove) nothrow pure {
+        auto node = _listMap.getNode(toMove);
+        if (node) {
+            _listMap.moveToFront(node);
+            return true;
+        }
+        return false;
+    }
+    
+    @trusted final bool moveGroupToBack(string toMove) nothrow pure {
+        auto node = _listMap.getNode(toMove);
+        if (node) {
+            _listMap.moveToBack(node);
+            return true;
+        }
+        return false;
+    }
+    
+    @trusted final bool moveGroupBefore(string other, string toMove) nothrow pure {
+        auto otherNode = _listMap.getNode(other);
+        auto nodeToMove = _listMap.getNode(toMove);
+        if (nodeToMove && otherNode) {
+            _listMap.moveBefore(otherNode, nodeToMove);
+            return true;
+        }
+        return false;
+    }
+    
+    @trusted final bool moveGroupAfter(string other, string toMove) nothrow pure {
+        auto otherNode = _listMap.getNode(other);
+        auto nodeToMove = _listMap.getNode(toMove);
+        if (nodeToMove && otherNode) {
+            _listMap.moveAfter(otherNode, nodeToMove);
+            return true;
+        }
+        return false;
+    }
+    
 private:
     string _fileName;
     ListMap!(string, IniLikeGroup, 8) _listMap;
@@ -1727,8 +1814,10 @@ Comment=Manage files
     assert(!firstEntry.contains("NonExistent"));
     assert(firstEntry.contains("GenericName"));
     assert(firstEntry.contains("GenericName[ru]"));
+    assert(firstEntry.byNode().filter!(node => node.isNull()).empty);
     assert(firstEntry["GenericName"] == "File manager");
     assert(firstEntry.value("GenericName") == "File manager");
+    assert(firstEntry.getNode("GenericName").key == "GenericName");
     
     assert(firstEntry.value("NeedUnescape") == `yes\\i\tneed`);
     assert(firstEntry.readEntry("NeedUnescape") == "yes\\i\tneed");
@@ -1737,16 +1826,18 @@ Comment=Manage files
     
     firstEntry.writeEntry("NeedEscape", "i\rneed\nescape");
     assert(firstEntry.value("NeedEscape") == `i\rneed\nescape`);
-    firstEntry.writeEntry("NeedEscape", "мне\rнужно\nэкранирование", "ru");
+    firstEntry.writeEntry("NeedEscape", "ru", "мне\rнужно\nэкранирование");
     assert(firstEntry.localizedValue("NeedEscape", "ru") == `мне\rнужно\nэкранирование`);
     
     firstEntry["GenericName"] = "Manager of files";
     assert(firstEntry["GenericName"] == "Manager of files");
     firstEntry["Authors"] = "Unknown";
     assert(firstEntry["Authors"] == "Unknown");
+    firstEntry.getNode("Authors").setValue("Known");
+    assert(firstEntry["Authors"] == "Known");
     
     assert(firstEntry.localizedValue("GenericName", "ru") == "Файловый менеджер");
-    firstEntry.setLocalizedValue("GenericName", "ru", "Менеджер файлов");
+    firstEntry["GenericName", "ru"] = "Менеджер файлов";
     assert(firstEntry.localizedValue("GenericName", "ru") == "Менеджер файлов");
     firstEntry.setLocalizedValue("Authors", "ru", "Неизвестны");
     assert(firstEntry.localizedValue("Authors", "ru") == "Неизвестны");
@@ -1761,8 +1852,9 @@ Comment=Manage files
     assert(ilf.group("Another Group")["Name"] == "Commander");
     assert(equal(ilf.group("Another Group").byKeyValue(), [ keyValueTuple("Name", "Commander"), keyValueTuple("Comment", "Manage files") ]));
     
-    auto latestCommentNode = ilf.group("Another Group").appendComment("The latest comment");
-    
+    auto latestCommentNode = ilf.group("Another Group").appendComment("The lastest comment");
+    assert(latestCommentNode.line.comment == "#The lastest comment");
+    latestCommentNode.setValue("The latest comment");
     assert(latestCommentNode.line.comment == "#The latest comment");
     assert(ilf.group("Another Group").prependComment("The first comment").line.comment == "#The first comment");
     
@@ -1872,4 +1964,59 @@ Valid=Key`;
     shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid comment should throw");
     assert(shouldThrow.lineNumber == 2);
+    
+    
+    contents = `# The leading comment
+[One]
+# Comment1
+Key1=Value1
+Key2=Value2
+Key3=Value3
+[Two]
+Key1=Value1
+Key2=Value2
+Key3=Value3
+# Comment2
+[Three]
+Key1=Value1
+Key2=Value2
+# Comment3
+Key3=Value3`;
+
+    ilf = new IniLikeFile(iniLikeStringReader(contents));
+    
+    assert(!ilf.moveGroupToFront("Nonexistent"));
+    assert(ilf.moveGroupToFront("Two"));
+    assert(ilf.byGroup().map!(g => g.groupName).equal(["Two", "One", "Three"]));
+    
+    assert(!ilf.moveGroupToBack("Nonexistent"));
+    assert(ilf.moveGroupToBack("One"));
+    assert(ilf.byGroup().map!(g => g.groupName).equal(["Two", "Three", "One"]));
+    
+    assert(!ilf.moveGroupBefore("Nonexistent", "Three"));
+    assert(!ilf.moveGroupAfter("Nonexistent", "Three"));
+    
+    assert(ilf.moveGroupBefore("Two", "Three"));
+    assert(ilf.byGroup().map!(g => g.groupName).equal(["Three", "Two", "One"]));
+    
+    assert(ilf.moveGroupAfter("Three", "One"));
+    assert(ilf.byGroup().map!(g => g.groupName).equal(["Three", "One", "Two"]));
+    
+    auto groupOne = ilf.group("One");
+    groupOne.moveLineToFront(groupOne.getNode("Key3"));
+    groupOne.moveLineToBack(groupOne.getNode("Key1"));
+    
+    assert(groupOne.byIniLine().equal([
+        IniLikeLine.fromKeyValue("Key3", "Value3"), IniLikeLine.fromComment("# Comment1"), 
+        IniLikeLine.fromKeyValue("Key2", "Value2"), IniLikeLine.fromKeyValue("Key1", "Value1")
+    ]));
+    
+    auto groupTwo = ilf.group("Two");
+    groupTwo.moveLineBefore(groupTwo.getNode("Key1"), groupTwo.getNode("Key3"));
+    groupTwo.moveLineAfter(groupTwo.getNode("Key2"), groupTwo.getNode("Key1"));
+    
+    assert(groupTwo.byIniLine().equal([
+        IniLikeLine.fromKeyValue("Key3", "Value3"), IniLikeLine.fromKeyValue("Key2", "Value2"), 
+         IniLikeLine.fromKeyValue("Key1", "Value1"), IniLikeLine.fromComment("# Comment2")
+    ]));
 }
