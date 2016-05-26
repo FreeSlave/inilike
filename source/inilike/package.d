@@ -76,14 +76,13 @@ unittest
             return super.removeGroup(groupName);
         }
         
-        @trusted override string appendLeadingComment(string line) nothrow {
+    protected:
+        @trusted override void addLeadingComment(string line) {
             if (_options & ReadOptions.preserveComments) {
-                return super.appendLeadingComment(line);
+                appendLeadingComment(line);
             }
-            return null;
         }
         
-    protected:
         @trusted override void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
         {
             if (currentGroup && (_options & ReadOptions.preserveComments)) {

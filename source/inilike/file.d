@@ -266,7 +266,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
     
     /**
      * Iterate over list nodes.
-     * See_Also: byEntry
+     * See_Also: $(D byEntry)
      */
     auto byNode() 
     {
@@ -794,7 +794,7 @@ private:
 
 /**
  * This class represents the group (section) in the ini-like file. 
- * You can create and use instances of this class only in the context of $(D IniLikeFile) or its derivatives.
+ * Instances of this class can be created only in the context of $(D IniLikeFile) or its derivatives.
  * Note: Keys are case-sensitive.
  */
 class IniLikeGroup
@@ -1181,20 +1181,40 @@ public:
         return _listMap.addAfter(node.node, makeCommentLine(comment));
     }
     
+    /**
+     * Move line to the start of group.
+     * Prerequisites: $(D toMove) is not null and belongs to this group.
+     * See_Also: $(D getNode)
+     */
     @trusted final void moveLineToFront(LineNode toMove) nothrow pure {
         _listMap.moveToFront(toMove.node);
     }
     
+    /**
+     * Move line to the end of group.
+     * Prerequisites: $(D toMove) is not null and belongs to this group.
+     * See_Also: $(D getNode)
+     */
     @trusted final void moveLineToBack(LineNode toMove) nothrow pure {
         _listMap.moveToBack(toMove.node);
     }
     
-    @trusted final void moveLineBefore(LineNode node, LineNode toMove) nothrow pure {
-        _listMap.moveBefore(node.node, toMove.node);
+    /**
+     * Move line before other line in the group.
+     * Prerequisites: $(D toMove) and $(D other) are not null and belong to this group.
+     * See_Also: $(D getNode)
+     */
+    @trusted final void moveLineBefore(LineNode other, LineNode toMove) nothrow pure {
+        _listMap.moveBefore(other.node, toMove.node);
     }
     
-    @trusted final void moveLineAfter(LineNode node, LineNode toMove) nothrow pure {
-        _listMap.moveAfter(node.node, toMove.node);
+    /**
+     * Move line after other line in the group.
+     * Prerequisites: $(D toMove) and $(D other) are not null and belong to this group.
+     * See_Also: $(D getNode)
+     */
+    @trusted final void moveLineAfter(LineNode other, LineNode toMove) nothrow pure {
+        _listMap.moveAfter(other.node, toMove.node);
     }
     
 private:
@@ -1307,6 +1327,58 @@ class IniLikeException : Exception
 }
 
 /**
+ * Exception thrown on error with group.
+ */
+class IniLikeGroupException : Exception
+{
+    ///
+    this(string msg, string groupName, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+        super(msg, file, line, next);
+        _group = groupName;
+    }
+    
+    /**
+     * Name of group where error occured.
+     */
+    @nogc @safe string groupName() const nothrow pure {
+        return _group;
+    }
+    
+private:
+    string _group;
+}
+
+/**
+ * Exception thrown when trying to set invalid key or value.
+ */
+class IniLikeEntryException : IniLikeGroupException
+{
+    this(string msg, string group, string key, string value, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+        super(msg, group, file, line, next);
+        _key = key;
+        _value = value;
+    }
+    
+    /**
+     * The key the value associated with.
+     */
+    @nogc @safe string key() const nothrow pure {
+        return _key;
+    }
+    
+    /**
+     * The value associated with key.
+     */
+    @nogc @safe string value() const nothrow pure {
+        return _value;
+    }
+    
+private:
+    string _key;
+    string _value;
+}
+
+/**
  * Exception thrown on the file read error.
  */
 class IniLikeReadException : IniLikeException
@@ -1363,51 +1435,23 @@ private:
 }
 
 /**
- * Exception thrown when trying to set invalid key or value.
- */
-class IniLikeEntryException : IniLikeException
-{
-    this(string msg, string group, string key, string value, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
-        super(msg, file, line, next);
-        _group = group;
-        _key = key;
-        _value = value;
-    }
-    
-    /**
-     * The key the value associated with.
-     */
-    @nogc @safe string key() const nothrow pure {
-        return _key;
-    }
-    
-    /**
-     * The value associated with key.
-     */
-    @nogc @safe string value() const nothrow pure {
-        return _value;
-    }
-    
-    /**
-     * Name of group where error occured.
-     */
-    @nogc @safe string groupName() const nothrow pure {
-        return _group;
-    }
-    
-private:
-    string _group;
-    string _key;
-    string _value;
-}
-
-/**
  * Ini-like file.
  * 
  */
 class IniLikeFile
 {
 protected:
+    
+    /**
+     * Add comment before groups.
+     * This function is called only in constructor and can be reimplemented in derived classes.
+     * Params:
+     *  comment = Comment line to add.
+     */
+    @trusted void addLeadingComment(string comment) {
+        appendLeadingComment(comment);
+    }
+    
     /**
      * Add comment for group.
      * This function is called only in constructor and can be reimplemented in derived classes.
@@ -1438,7 +1482,7 @@ protected:
     {
         if (currentGroup) {
             if (currentGroup.contains(key)) {
-                throw new Exception("key already exists");
+                throw new IniLikeEntryException("key already exists", groupName, key, value);
             }
             currentGroup[key] = value;
         }
@@ -1446,20 +1490,20 @@ protected:
     
     /**
      * Create iniLikeGroup by groupName.
-     * This function is called only in constructor and can be reimplemented in derived classes, 
+     * This function can be reimplemented in derived classes, 
      * e.g. to insert additional checks or create specific derived class depending on groupName.
-     * Returned value is later passed to addCommentForGroup and addKeyValueForGroup methods as currentGroup. 
+     * Returned value is later passed to $(D addCommentForGroup) and $(D addKeyValueForGroup) methods as currentGroup. 
      * Reimplemented method also is allowed to return null.
      * Default implementation just returns empty IniLikeGroup with name set to groupName.
      * Throws:
-     *  $(D IniLikeException) if group with such name already exists.
+     *  $(D IniLikeGroupException) if group with such name already exists.
      * See_Also:
      *  $(D addKeyValueForGroup), $(D addCommentForGroup)
      */
     @trusted IniLikeGroup createGroup(string groupName)
     {
         if (group(groupName) !is null) {
-            throw new IniLikeException("group already exists");
+            throw new IniLikeGroupException("group already exists", groupName);
         }
         return createEmptyGroup(groupName);
     }
@@ -1470,7 +1514,6 @@ protected:
     @safe static createEmptyGroup(string groupName) {
         return new IniLikeGroup(groupName);
     }
-    
 public:
     /**
      * Construct empty IniLikeFile, i.e. without any groups or values
@@ -1490,8 +1533,8 @@ public:
     }
     
     /**
-     * Read from range of inilike.range.IniLikeReader.
-     * Note: All exceptions thrown within constructor are turning into IniLikeReadException.
+     * Read from range of $(D inilike.range.IniLikeReader).
+     * Note: All exceptions thrown within constructor are turning into $(D IniLikeReadException).
      * Throws:
      *  $(D IniLikeReadException) if error occured while parsing.
      */
@@ -1509,7 +1552,7 @@ public:
             {
                 lineNumber++;
                 if (line.isComment || line.strip.empty) {
-                    appendLeadingComment(line);
+                    addLeadingComment(line);
                 } else {
                     throw new IniLikeException("Expected comment or empty line before any group");
                 }
@@ -1560,7 +1603,7 @@ public:
     
     /**
      * Get group by name.
-     * Returns: IniLikeGroup instance associated with groupName or null if not found.
+     * Returns: $(D IniLikeGroup) instance associated with groupName or null if not found.
      * See_Also: $(D byGroup)
      */
     @nogc @safe final inout(IniLikeGroup) group(string groupName) nothrow inout pure {
@@ -1574,7 +1617,9 @@ public:
     /**
      * Create new group using groupName.
      * Returns: Newly created instance of IniLikeGroup.
-     * Throws: IniLikeException if group with such name already exists or groupName is empty.
+     * Throws: 
+     *  $(D IniLikeGroupException) if group with such name already exists.
+     *  $(D IniLikeException) if groupName is empty.
      * See_Also: $(D removeGroup), $(D group)
      */
     @safe final IniLikeGroup addGroup(string groupName) {
@@ -1665,7 +1710,7 @@ public:
     /**
      * Leading comments.
      * Returns: Range of leading comments (before any group)
-     * See_Also: $(D appendLeadingComment), $(D prependLeadingComment)
+     * See_Also: $(D appendLeadingComment), $(D prependLeadingComment), $(D clearLeadingComments)
      */
     @nogc @safe final auto leadingComments() const nothrow pure {
         return _leadingComments;
@@ -1694,7 +1739,7 @@ public:
      * Returns: Line that was added as comment.
      * See_Also: $(D leadingComments), $(D prependLeadingComment)
      */
-    @safe string appendLeadingComment(string line) nothrow {
+    @safe final string appendLeadingComment(string line) nothrow pure {
         line = makeComment(line);
         _leadingComments ~= line;
         return line;
@@ -1705,7 +1750,7 @@ public:
      * Returns: Line that was added as comment.
      * See_Also: $(D leadingComments), $(D appendLeadingComment)
      */
-    @safe string prependLeadingComment(string line) nothrow pure {
+    @safe final string prependLeadingComment(string line) nothrow pure {
         line = makeComment(line);
         _leadingComments = line ~ _leadingComments;
         return line;
@@ -1719,6 +1764,10 @@ public:
         _leadingComments = null;
     }
     
+    /**
+     * Move the group to make it the first.
+     * Returns: true if group was moved, false otherwise (no group with such name exists).
+     */
     @trusted final bool moveGroupToFront(string toMove) nothrow pure {
         auto node = _listMap.getNode(toMove);
         if (node) {
@@ -1728,6 +1777,10 @@ public:
         return false;
     }
     
+    /**
+     * Move the group to make it the last.
+     * Returns: true if group was moved, false otherwise (no group with such name exists).
+     */
     @trusted final bool moveGroupToBack(string toMove) nothrow pure {
         auto node = _listMap.getNode(toMove);
         if (node) {
@@ -1737,6 +1790,10 @@ public:
         return false;
     }
     
+    /**
+     * Move group before other.
+     * Returns: true if group was moved, false otherwise (one or both groups don't existed).
+     */
     @trusted final bool moveGroupBefore(string other, string toMove) nothrow pure {
         auto otherNode = _listMap.getNode(other);
         auto nodeToMove = _listMap.getNode(toMove);
@@ -1747,6 +1804,10 @@ public:
         return false;
     }
     
+    /**
+     * Move group after other.
+     * Returns: true if group was moved, false otherwise (one or both groups don't existed).
+     */
     @trusted final bool moveGroupAfter(string other, string toMove) nothrow pure {
         auto otherNode = _listMap.getNode(other);
         auto nodeToMove = _listMap.getNode(toMove);
