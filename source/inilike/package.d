@@ -48,25 +48,23 @@ unittest
 
     final class DesktopFile : IniLikeFile
     {
-        //Flags to manage .ini like file reading
-        enum ReadOptions
-        {
-            noOptions = 0,              // Read all groups, skip comments and empty lines, stop on any error.
-            preserveComments = 2,       // Preserve comments and empty lines. Use this when you want to keep them across writing.
-            ignoreGroupDuplicates = 4,  // Ignore group duplicates. The first found will be used.
-            ignoreInvalidKeys = 8,      // Skip invalid keys during parsing.
-            ignoreKeyDuplicates = 16,   // Ignore key duplicates. The first found will be used.
-            ignoreUnknownGroups = 32,   // Don't throw on unknown groups. Still save them.
-            skipUnknownGroups = 64,     // Don't save unknown groups.
-            skipExtensionGroups = 128   // Skip groups started with X-
+        //Options to manage .ini like file reading
+        static struct DesktopReadOptions
+        {   
+            IniLikeFile.ReadOptions baseOptions;
+            
+            alias baseOptions this;
+            
+            bool skipExtensionGroups;
+            bool ignoreUnknownGroups;
+            bool skipUnknownGroups;
         }
         
-        @trusted this(IniLikeReader)(IniLikeReader reader, ReadOptions options = ReadOptions.noOptions)
+        @trusted this(IniLikeReader)(IniLikeReader reader, DesktopReadOptions options = DesktopReadOptions.init)
         {
             _options = options;
-            super(reader);
+            super(reader, null, options.baseOptions);
             enforce(_desktopEntry !is null, new IniLikeReadException("No \"Desktop Entry\" group", 0));
-            _options = ReadOptions.noOptions;
         }
         
         @safe override bool removeGroup(string groupName) nothrow {
@@ -77,63 +75,25 @@ unittest
         }
         
     protected:
-        @trusted override void addLeadingComment(string line) {
-            if (_options & ReadOptions.preserveComments) {
-                appendLeadingComment(line);
-            }
-        }
-        
-        @trusted override void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
-        {
-            if (currentGroup && (_options & ReadOptions.preserveComments)) {
-                currentGroup.appendComment(comment);
-            }
-        }
-        
-        @trusted override void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
-        {
-            if (currentGroup) {
-                if (!isValidDesktopFileKey(key) && (_options & ReadOptions.ignoreInvalidKeys)) {
-                    return;
-                }
-                if (currentGroup.contains(key)) {
-                    if (_options & ReadOptions.ignoreKeyDuplicates) {
-                        return;
-                    } else {
-                        throw new Exception("key already exists");
-                    }
-                }
-                currentGroup[key] = value;
-            }
-        }
-        
-        @trusted override IniLikeGroup createGroup(string groupName)
-        {
-            if (group(groupName) !is null) {
-                if (_options & ReadOptions.ignoreGroupDuplicates) {
-                    return null;
-                } else {
-                    throw new Exception("group already exists");
-                }
-            }
-            
+        @trusted override IniLikeGroup createGroupByName(string groupName)
+        {   
             if (groupName == "Desktop Entry") {
                 _desktopEntry = new DesktopEntry();
                 return _desktopEntry;
             } else if (groupName.startsWith("X-")) {
-                if (_options & ReadOptions.skipExtensionGroups) {
+                if (_options.skipExtensionGroups) {
                     return null;
                 }
                 return createEmptyGroup(groupName);
             } else {
-                if (_options & ReadOptions.ignoreUnknownGroups) {
-                    if (_options & ReadOptions.skipUnknownGroups) {
+                if (_options.ignoreUnknownGroups) {
+                    if (_options.skipUnknownGroups) {
                         return null;
                     } else {
                         return createEmptyGroup(groupName);
                     }
                 } else {
-                    throw new Exception("Unknown group");
+                    throw new IniLikeException("Unknown group");
                 }
             }
         }
@@ -144,7 +104,7 @@ unittest
         
     private:
         DesktopEntry _desktopEntry;
-        ReadOptions _options;
+        DesktopReadOptions _options;
     }
     
     string contents = 
@@ -152,14 +112,15 @@ unittest
 [Desktop Entry]
 Key=Value
 # Comment in group`;
+    DesktopFile.DesktopReadOptions options;
 
-    auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions);
+    auto df = new DesktopFile(iniLikeStringReader(contents), options);
     assert(!df.removeGroup("Desktop Entry"));
     assert(!df.removeGroup("NonExistent"));
     assert(df.group("Desktop Entry") !is null);
     assert(df.desktopEntry() !is null);
-    assert(df.leadingComments().empty);
-    assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value")]));
+    assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromComment("# Comment in group")]));
+    assert(equal(df.leadingComments(), ["# First comment"]));
     
     assertThrown(df.desktopEntry().writeEntry("$Invalid", "Valid value"));
     
@@ -177,15 +138,11 @@ Key=Value
     assert(df.desktopEntry().setValue("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip) is null);
     assert(df.desktopEntry().value("Another$Invalid") is null);
     
-    df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.preserveComments);
-    assert(equal(df.leadingComments(), ["# First comment"]));
-    assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromComment("# Comment in group")]));
-    
     contents = 
 `[X-SomeGroup]
 Key=Value`;
 
-    auto thrown = collectException!IniLikeReadException(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    auto thrown = collectException!IniLikeReadException(new DesktopFile(iniLikeStringReader(contents)));
     assert(thrown !is null);
     assert(thrown.lineNumber == 0);
     
@@ -194,22 +151,15 @@ Key=Value`;
 Valid=Key
 $=Invalid`;
 
-    thrown = collectException!IniLikeReadException(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    thrown = collectException!IniLikeReadException(new DesktopFile(iniLikeStringReader(contents)));
     assert(thrown !is null);
     assert(thrown.entryException !is null);
     assert(thrown.entryException.key == "$");
     assert(thrown.entryException.value == "Invalid");
     
-    assertNotThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreInvalidKeys));
-    
-    contents = 
-`[Desktop Entry]
-Key=Value1
-Key=Value2`;
-
-    assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
-    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreKeyDuplicates));
-    assert(df.desktopEntry().value("Key") == "Value1");
+    options = DesktopFile.DesktopReadOptions.init;
+    options.invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.skip;
+    assertNotThrown(new DesktopFile(iniLikeStringReader(contents), options));
     
     contents = 
 `[Desktop Entry]
@@ -217,23 +167,17 @@ Name=Name
 [Unknown]
 Key=Value`;
 
-    assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
-    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreUnknownGroups));
+    assertThrown(new DesktopFile(iniLikeStringReader(contents)));
+    
+    options = DesktopFile.DesktopReadOptions.init;
+    options.ignoreUnknownGroups = true;
+    
+    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), options));
     assert(df.group("Unknown") !is null);
     
-    df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreUnknownGroups|DesktopFile.ReadOptions.skipUnknownGroups);
+    options.skipUnknownGroups = true;
+    df = new DesktopFile(iniLikeStringReader(contents), options);
     assert(df.group("Unknown") is null);
-    
-    contents = 
-`[Desktop Entry]
-Name=Name1
-[Desktop Entry]
-Name=Name2`;
-    
-    assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
-    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreGroupDuplicates));
-    
-    assert(df.desktopEntry().value("Name") == "Name1");
     
     contents = 
 `[Desktop Entry]
@@ -241,6 +185,9 @@ Name=Name1
 [X-Extension]
 Name=Name2`;
 
-    df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.skipExtensionGroups);
+    options = DesktopFile.DesktopReadOptions.init;
+    options.skipExtensionGroups = true;
+
+    df = new DesktopFile(iniLikeStringReader(contents), options);
     assert(df.group("X-Extension") is null);
 }

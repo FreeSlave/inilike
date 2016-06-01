@@ -1031,7 +1031,7 @@ public:
     unittest 
     {
         auto lilf = new IniLikeFile;
-        lilf.addGroup("Entry");
+        lilf.addGenericGroup("Entry");
         auto group = lilf.group("Entry");
         assert(group.groupName == "Entry"); 
         group["Name"] = "Programmer";
@@ -1317,7 +1317,7 @@ protected:
     unittest
     {
         auto ilf = new IniLikeFile();
-        ilf.addGroup("Group");
+        ilf.addGenericGroup("Group");
         
         auto entryException = collectException!IniLikeEntryException(ilf.group("Group")[""] = "Value1");
         assert(entryException !is null);
@@ -1366,7 +1366,7 @@ protected:
     unittest
     {
         auto ilf = new IniLikeFile();
-        ilf.addGroup("Group");
+        ilf.addGenericGroup("Group");
         
         auto entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
         assert(entryException !is null);
@@ -1576,9 +1576,50 @@ Duplicate=Second`;
             [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromKeyValue("Duplicate", "Second")]
         ));
         assert(ilf.group("Group").value("Duplicate") == "First");
+        
+        contents = `[Duplicate]
+Key=First
+[Group]
+[Duplicate]
+Key=Second`;
+
+        readOptions = ReadOptions.init;
+        readOptions.duplicateGroupPolicy = ReadOptions.DuplicatePolicy.preserve;
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        auto byGroup = ilf.byGroup();
+        assert(byGroup.front["Key"] == "First");
+        assert(byGroup.back["Key"] == "Second");
+        
+        contents = `[Duplicate]
+Key=First
+[Group]
+[Duplicate]
+Key=Second`;
+
+        readOptions = ReadOptions.init;
+        readOptions.duplicateGroupPolicy = ReadOptions.DuplicatePolicy.skip;
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        auto byGroup2 = ilf.byGroup();
+        assert(byGroup2.front["Key"] == "First");
+        assert(byGroup2.back.groupName == "Group");
     }
     
 protected:
+    @trusted final void insertGroup(IniLikeGroup group)
+    in {
+        assert(group !is null);
+    }
+    body {
+        _listMap.insertBack(group.groupName, group);
+    }
+    
+    @trusted final void putGroup(IniLikeGroup group)
+    in {
+        assert(group !is null);
+    }
+    body {
+        _listMap.append(group);
+    }
     
     /**
      * Add comment before groups.
@@ -1586,7 +1627,7 @@ protected:
      * Params:
      *  comment = Comment line to add.
      */
-    @trusted void addLeadingComment(string comment) {
+    @trusted void onLeadingComment(string comment) {
         if (_readOptions.preserveComments) {
             appendLeadingComment(comment);
         }
@@ -1601,7 +1642,7 @@ protected:
      *  groupName = The name of the currently parsed group. Set even if currentGroup is null.
      * See_Also: $(D createGroup), $(D IniLikeGroup.appendComment)
      */
-    @trusted void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
+    @trusted void onCommentInGroup(string comment, IniLikeGroup currentGroup, string groupName)
     {
         if (currentGroup && _readOptions.preserveComments) {
             currentGroup.appendComment(comment);
@@ -1618,7 +1659,7 @@ protected:
      *  groupName = The name of the currently parsed group. Set even if currentGroup is null.
      * See_Also: $(D createGroup)
      */
-    @trusted void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
+    @trusted void onKeyValue(string key, string value, IniLikeGroup currentGroup, string groupName)
     {
         alias ReadOptions.DuplicatePolicy DuplicatePolicy;
         if (currentGroup) {
@@ -1639,29 +1680,56 @@ protected:
     }
     
     /**
-     * Create iniLikeGroup by groupName.
+     * Create iniLikeGroup by groupName during file parsing.
      * This function can be reimplemented in derived classes, 
      * e.g. to insert additional checks or create specific derived class depending on groupName.
-     * Returned value is later passed to $(D addCommentForGroup) and $(D addKeyValueForGroup) methods as currentGroup. 
+     * Returned value is later passed to $(D onCommentInGroup) and $(D onKeyValue) methods as currentGroup. 
      * Reimplemented method also is allowed to return null.
      * Default implementation just returns empty IniLikeGroup with name set to groupName.
      * Throws:
      *  $(D IniLikeGroupException) if group with such name already exists.
+     *  $(D IniLikeException) if groupName is empty.
      * See_Also:
-     *  $(D addKeyValueForGroup), $(D addCommentForGroup)
+     *  $(D onKeyValue), $(D onCommentInGroup)
      */
-    @trusted IniLikeGroup createGroup(string groupName)
-    {
+    @trusted IniLikeGroup onGroup(string groupName) {
         if (group(groupName) !is null) {
-            throw new IniLikeGroupException("group already exists", groupName);
+            final switch(_readOptions.duplicateGroupPolicy) {
+                case ReadOptions.DuplicatePolicy.throwError:
+                    throw new IniLikeGroupException("group already exists", groupName);
+                case ReadOptions.DuplicatePolicy.skip:
+                    return null;
+                case ReadOptions.DuplicatePolicy.preserve:
+                    auto toPut = createGroupByName(groupName);
+                    if (toPut) {
+                        putGroup(toPut);
+                    }
+                    return toPut;
+            }
+        } else {
+            auto toInsert = createGroupByName(groupName);
+            if (toInsert) {
+                insertGroup(toInsert);
+            }
+            return toInsert;
         }
+    }
+    
+    /**
+     * Reimplement in derive class.
+     */
+    @trusted IniLikeGroup createGroupByName(string groupName) {
         return createEmptyGroup(groupName);
     }
     
     /**
      * Can be used in derived classes to create instance of IniLikeGroup.
+     * Throws: $(D IniLikeException) if groupName is empty.
      */
     @safe static createEmptyGroup(string groupName) {
+        if (groupName.length == 0) {
+            throw new IniLikeException("empty group name");
+        }
         return new IniLikeGroup(groupName);
     }
 public:
@@ -1703,7 +1771,7 @@ public:
             {
                 lineNumber++;
                 if (line.isComment || line.strip.empty) {
-                    addLeadingComment(line);
+                    onLeadingComment(line);
                 } else {
                     throw new IniLikeException("Expected comment or empty line before any group");
                 }
@@ -1718,14 +1786,14 @@ public:
                     foo(lineNumber); //fix dmd codgen bug with -O
                 }
                 
-                currentGroup = addGroup(groupName);
+                currentGroup = onGroup(groupName);
                 
                 foreach(line; g.byEntry)
                 {
                     lineNumber++;
                     
                     if (line.isComment || line.strip.empty) {
-                        addCommentForGroup(line, currentGroup, groupName);
+                        onCommentInGroup(line, currentGroup, groupName);
                     } else {
                         const t = parseKeyValue(line);
                         
@@ -1735,7 +1803,7 @@ public:
                         if (key.length == 0 && value.length == 0) {
                             throw new IniLikeException("Expected comment, empty line or key value inside group");
                         } else {
-                            addKeyValueForGroup(key, value, currentGroup, groupName);
+                            onKeyValue(key, value, currentGroup, groupName);
                         }
                     }
                 }
@@ -1773,22 +1841,19 @@ public:
      *  $(D IniLikeException) if groupName is empty.
      * See_Also: $(D removeGroup), $(D group)
      */
-    @safe final IniLikeGroup addGroup(string groupName) {
-        if (groupName.length == 0) {
-            throw new IniLikeException("empty group name");
+    @safe final IniLikeGroup addGenericGroup(string groupName) {
+        if (group(groupName) !is null) {
+            throw new IniLikeGroupException("group already exists", groupName);
         }
-        
-        auto iniLikeGroup = createGroup(groupName);
-        if (iniLikeGroup !is null) {
-            _listMap.insertBack(groupName, iniLikeGroup);
-        }
-        return iniLikeGroup;
+        auto toReturn = createEmptyGroup(groupName);
+        insertGroup(toReturn);
+        return toReturn;
     }
     
     /**
      * Remove group by name. Do nothing if group with such name does not exist.
      * Returns: true if group was deleted, false otherwise.
-     * See_Also: $(D addGroup), $(D group)
+     * See_Also: $(D addGenericGroup), $(D group)
      */
     @safe bool removeGroup(string groupName) nothrow {
         return _listMap.remove(groupName);
@@ -2115,15 +2180,17 @@ Comment=Manage files
     assert(!ilf.group("Another Group"));
     assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry"]));
     
-    ilf.addGroup("Another Group");
+    ilf.addGenericGroup("Another Group");
     assert(ilf.group("Another Group"));
     assert(ilf.group("Another Group").byIniLine().empty);
     assert(ilf.group("Another Group").byKeyValue().empty);
     
-    ilf.addGroup("Other Group");
+    assertThrown(ilf.addGenericGroup("Another Group"));
+    
+    ilf.addGenericGroup("Other Group");
     assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry", "Another Group", "Other Group"]));
     
-    assertThrown!IniLikeException(ilf.addGroup(""));
+    assertThrown!IniLikeException(ilf.addGenericGroup(""));
     
     import std.range : isForwardRange;
     
