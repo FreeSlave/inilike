@@ -163,10 +163,19 @@ Key=Value
     
     assertThrown(df.desktopEntry().writeEntry("$Invalid", "Valid value"));
     
-    //auto entryException = collectException!IniLikeEntryException(df.desktopEntry().writeEntry("$Invalid", "Valid value"));
-    //assert(entryException !is null);
-    df.desktopEntry().writeEntry("$Invalid", "Valid value", Yes.allowInvalidKey);
+    IniLikeEntryException entryException;
+    try {
+        df.desktopEntry().writeEntry("$Invalid", "Valid value");
+    } catch(IniLikeEntryException e) {
+        entryException = e;
+    }
+    assert(entryException !is null);
+    df.desktopEntry().writeEntry("$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.save);
     assert(df.desktopEntry().value("$Invalid") == "Valid value");
+    
+    assert(df.desktopEntry().appendValue("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip).isNull());
+    assert(df.desktopEntry().setValue("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip) is null);
+    assert(df.desktopEntry().value("Another$Invalid") is null);
     
     df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.preserveComments);
     assert(equal(df.leadingComments(), ["# First comment"]));

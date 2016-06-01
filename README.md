@@ -39,7 +39,7 @@ Example:
     Key=English value
     Key[fr_FR]=Francais value
 
-## Localized values lookup. 
+## Localized values lookup
 
 The localized value is the value associated with the localized key. Localized keys look like this:
 

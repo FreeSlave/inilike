@@ -298,22 +298,22 @@ struct ListMap(K,V, size_t chunkSize = 32)
         Node* _prev;
         Node* _next;
         
-        this(K key, V value) {
+        @trusted this(K key, V value) pure nothrow {
             _key = key;
             _value = value;
             _hasKey = true;
         }
         
-        this(V value) {
+        @trusted this(V value) pure nothrow {
             _value = value;
             _hasKey = false;
         }
         
-        void prev(Node* newPrev) {
+        @trusted void prev(Node* newPrev) pure nothrow {
             _prev = newPrev;
         }
         
-        void next(Node* newNext) {
+        @trusted void next(Node* newNext) pure nothrow {
             _next = newNext;
         }
         
@@ -321,42 +321,42 @@ struct ListMap(K,V, size_t chunkSize = 32)
         /**
          * Get stored value.
          */
-        inout(V) value() inout {
+        @trusted inout(V) value() inout pure nothrow {
             return _value;
         }
         
         /**
          * Set stored value.
          */
-        void value(V newValue) {
+        @trusted void value(V newValue) pure nothrow {
             _value = newValue;
         }
         
         /**
          * Tell whether this node is a key-value node.
          */
-        bool hasKey() const {
+        @trusted bool hasKey() const pure nothrow {
             return _hasKey;
         }
         
         /**
          * Key in key-value node.
          */
-        auto key() const {
+        @trusted auto key() const pure nothrow {
             return _key;
         }
         
         /**
          * Access previous node in the list.
          */
-        inout(Node)* prev() inout {
+        @trusted inout(Node)* prev() inout pure nothrow {
             return _prev;
         }
         
         /**
          * Access next node in the list.
          */
-        inout(Node)* next() inout {
+        @trusted inout(Node)* next() inout pure nothrow {
             return _next;
         }
         
@@ -724,6 +724,28 @@ unittest
         assert(listMap.byEntry().equal([Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average")]));
     }
     checkConst(listMap);
+    
+    static class Class
+    {
+        this(string name) {
+            _name = name;
+        }
+        
+        string name() const {
+            return _name;
+        }
+    private:
+        string _name;
+    }
+    
+    alias ListMap!(string, Class) TestClassListMap;
+    TestClassListMap classListMap;
+    classListMap.insertFront("name", new Class("Name"));
+    classListMap.append(new Class("Value"));
+    auto byClass = classListMap.byEntry();
+    assert(byClass.front.value.name == "Name");
+    assert(byClass.front.key == "name");
+    assert(byClass.back.value.name == "Value");
 }
 
 /**
@@ -803,6 +825,16 @@ private:
     alias ListMap!(string, IniLikeLine) LineListMap;
     
 public:
+    ///
+    enum InvalidKeyPolicy : ubyte {
+        ///Throw error on invalid key
+        throwError,
+        ///Skip invalid key
+        skip,
+        ///Save entry with invalid key.
+        save
+    }
+    
     /**
      * Create instance on IniLikeGroup and set its name to groupName.
      */
@@ -877,23 +909,41 @@ public:
         }
     }
     
+    private @trusted final bool validateKeyValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy)
+    {
+        validateValue(key, value);
+        
+        try {
+            validateKey(key, value);
+            return true;
+        } catch(IniLikeEntryException e) {
+            final switch(invalidKeyPolicy) {
+                case InvalidKeyPolicy.throwError:
+                    throw e;
+                case InvalidKeyPolicy.save:
+                    validateKeyImpl(key, value, _name);
+                    return true;
+                case InvalidKeyPolicy.skip:
+                    validateKeyImpl(key, value, _name);
+                    return false;
+            }
+        }
+    }
+    
     /**
      * Set value associated with key.
      * Params:
      *  key = Key to associate value with.
      *  value = Value to set.
-     *  allowInvalidKey = Allow invalid key. Basic format validation is still applied to preserve file format consistency.
+     *  invalidKeyPolicy = Policyt about invalid keys.
      * See_Also: $(D value), $(D setLocalizedValue), $(D writeEntry)
      */
-    @safe final string setValue(string key, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey)
+    @safe final string setValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError)
     {
-        validateValue(key, value);
-        if (allowInvalidKey) {
-            validateKeyImpl(key, value, _name);
-        } else {
-            validateKey(key, value);
+        if (validateKeyValue(key, value, invalidKeyPolicy)) {
+            return setKeyValueImpl(key, value);
         }
-        return setKeyValueImpl(key, value);
+        return null;
     }
     
     /**
@@ -914,15 +964,15 @@ public:
      * Throws: $(D IniLikeEntryException) if key or value is not valid.
      * See_Also: $(D readEntry), $(D setValue)
      */
-    @safe final string writeEntry(string key, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey) {
+    @safe final string writeEntry(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         value = value.escapeValue();
-        return setValue(key, value, allowInvalidKey);
+        return setValue(key, value, invalidKeyPolicy);
     }
     
     ///ditto, localized version
-    @safe final string writeEntry(string key, string locale, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey) {
+    @safe final string writeEntry(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         value = value.escapeValue();
-        return setLocalizedValue(key, locale, value, allowInvalidKey);
+        return setLocalizedValue(key, locale, value, invalidKeyPolicy);
     }
     
     /**
@@ -1011,8 +1061,8 @@ public:
      * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
      * See_Also: $(D localizedValue), $(D setValue), $(D writeEntry)
      */
-    @safe final string setLocalizedValue(string key, string locale, string value, Flag!"allowInvalidKey" allowInvalidKey = No.allowInvalidKey) {
-        return setValue(localizedKey(key, locale), value, allowInvalidKey);
+    @safe final string setLocalizedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
+        return setValue(localizedKey(key, locale), value, invalidKeyPolicy);
     }
     
     /**
@@ -1031,6 +1081,10 @@ public:
     ///ditto, but remove entry by node.
     @safe final void removeEntry(LineNode node) nothrow pure {
         _listMap.remove(node.node);
+    }
+    
+    private @nogc @safe static auto staticByKeyValue(Range)(Range nodes) nothrow {
+        return nodes.map!(node => node.value).filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
     }
     
     /**
@@ -1057,10 +1111,6 @@ public:
         assert(emptyByKeyValue().empty);
         auto group = new IniLikeGroup("Group name");
         static assert(is(typeof(emptyByKeyValue()) == typeof(group.byKeyValue()) ));
-    }
-    
-    private @nogc @safe static auto staticByKeyValue(Range)(Range nodes) nothrow {
-        return nodes.map!(node => node.value).filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
     }
     
     /**
@@ -1135,6 +1185,17 @@ public:
      */
     @trusted final auto getNode(string key) {
         return lineNode(_listMap.getNode(key));
+    }
+    
+    /**
+     * Add key-value entry without association of value with key. Can be used to add duplicates.
+     */
+    final auto appendValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
+        if (validateKeyValue(key, value, invalidKeyPolicy)) {
+            return lineNode(_listMap.append(IniLikeLine.fromKeyValue(key, value)));
+        } else {
+            return lineNode(null);
+        }
     }
     
     /**
@@ -1440,6 +1501,83 @@ private:
  */
 class IniLikeFile
 {
+    ///Behavior of ini-like file reading.
+    struct ReadOptions
+    {
+        ///
+        enum DuplicatePolicy
+        {
+            ///Throw error on duplicate
+            throwError,
+            ///Skip duplicate without error
+            skip,
+            ///Preserve all duplicates in the list. The first found value remains accessible by key.
+            preserve
+        }
+        
+        ///Behavior on groups with duplicate names.
+        DuplicatePolicy duplicateGroupPolicy = DuplicatePolicy.throwError;
+        ///Behavior on duplicate keys.
+        DuplicatePolicy duplicateKeyPolicy = DuplicatePolicy.throwError;
+        
+        ///Behavior on invalid keys.
+        IniLikeGroup.InvalidKeyPolicy invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.throwError;
+        
+        ///Whether to preserve comments
+        bool preserveComments = true;
+    }
+    
+    ///
+    unittest
+    {
+        string contents = `# The first comment
+[First Entry]
+# Comment
+GenericName=File manager
+GenericName[ru]=Файловый менеджер
+# Another comment
+[Another Group]
+Name=Commander
+# The last comment`;
+
+        alias IniLikeFile.ReadOptions ReadOptions;
+        ReadOptions readOptions;
+        readOptions.preserveComments = false;
+        
+        IniLikeFile ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        assert(!ilf.readOptions().preserveComments);
+        assert(ilf.leadingComments().empty);
+        assert(equal(
+            ilf.group("First Entry").byIniLine(), 
+            [IniLikeLine.fromKeyValue("GenericName", "File manager"), IniLikeLine.fromKeyValue("GenericName[ru]", "Файловый менеджер")]
+        ));
+        assert(equal(
+            ilf.group("Another Group").byIniLine(), 
+            [IniLikeLine.fromKeyValue("Name", "Commander")]
+        ));
+        
+        contents = `[Group]
+Duplicate=First
+Key=Value
+Duplicate=Second`;
+
+        readOptions = ReadOptions.init;
+        readOptions.duplicateKeyPolicy = ReadOptions.DuplicatePolicy.skip;
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        assert(equal(
+            ilf.group("Group").byIniLine(), 
+            [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value")]
+        ));
+        
+        readOptions.duplicateKeyPolicy = ReadOptions.DuplicatePolicy.preserve;
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        assert(equal(
+            ilf.group("Group").byIniLine(), 
+            [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromKeyValue("Duplicate", "Second")]
+        ));
+        assert(ilf.group("Group").value("Duplicate") == "First");
+    }
+    
 protected:
     
     /**
@@ -1449,7 +1587,9 @@ protected:
      *  comment = Comment line to add.
      */
     @trusted void addLeadingComment(string comment) {
-        appendLeadingComment(comment);
+        if (_readOptions.preserveComments) {
+            appendLeadingComment(comment);
+        }
     }
     
     /**
@@ -1463,7 +1603,7 @@ protected:
      */
     @trusted void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
     {
-        if (currentGroup) {
+        if (currentGroup && _readOptions.preserveComments) {
             currentGroup.appendComment(comment);
         }
     }
@@ -1480,11 +1620,21 @@ protected:
      */
     @trusted void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
     {
+        alias ReadOptions.DuplicatePolicy DuplicatePolicy;
         if (currentGroup) {
             if (currentGroup.contains(key)) {
-                throw new IniLikeEntryException("key already exists", groupName, key, value);
+                final switch(_readOptions.duplicateKeyPolicy) {
+                    case DuplicatePolicy.throwError:
+                        throw new IniLikeEntryException("key already exists", groupName, key, value);
+                    case DuplicatePolicy.skip:
+                        break;
+                    case DuplicatePolicy.preserve:
+                        currentGroup.appendValue(key, value, _readOptions.invalidKeyPolicy);
+                        break;
+                }
+            } else {
+                currentGroup.setValue(key, value, _readOptions.invalidKeyPolicy);
             }
-            currentGroup[key] = value;
         }
     }
     
@@ -1528,8 +1678,8 @@ public:
      *  $(B ErrnoException) if file could not be opened.
      *  $(D IniLikeReadException) if error occured while reading the file.
      */
-    @trusted this(string fileName) {
-        this(iniLikeFileReader(fileName), fileName);
+    @trusted this(string fileName, ReadOptions readOptions = ReadOptions.init) {
+        this(iniLikeFileReader(fileName), fileName, readOptions);
     }
     
     /**
@@ -1538,8 +1688,9 @@ public:
      * Throws:
      *  $(D IniLikeReadException) if error occured while parsing.
      */
-    this(IniLikeReader)(IniLikeReader reader, string fileName = null)
+    this(IniLikeReader)(IniLikeReader reader, string fileName = null, ReadOptions readOptions = ReadOptions.init)
     {
+        _readOptions = readOptions;
         size_t lineNumber = 0;
         IniLikeGroup currentGroup;
         
@@ -1818,10 +1969,14 @@ public:
         return false;
     }
     
+    @safe final ReadOptions readOptions() nothrow const pure {
+        return _readOptions;
+    }
 private:
     string _fileName;
     ListMap!(string, IniLikeGroup, 8) _listMap;
     string[] _leadingComments;
+    ReadOptions _readOptions;
 }
 
 ///
