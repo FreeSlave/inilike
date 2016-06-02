@@ -845,7 +845,7 @@ public:
     /**
      * Returns: The value associated with the key.
      * Note: The value is not unescaped automatically.
-     * Prerequisites: Accessed key must exist.
+     * Prerequisites: Value accessed by key must exist.
      * See_Also: $(D value), $(D readEntry)
      */
     @nogc @safe final string opIndex(string key) const nothrow pure {
@@ -1142,16 +1142,28 @@ public:
          * Get key of node.
          */
         @nogc @trusted string key() const pure nothrow {
-            return node.key;
+            if (node) {
+                return node.key;
+            } else {
+                return null;
+            }
         }
         
         /**
-         * Get IniLikeLine pointed by node.
+         * Get $(D IniLikeLine) pointed by node.
          */
         @nogc @trusted IniLikeLine line() const pure nothrow {
-            return node.value;
+            if (node) {
+                return node.value;
+            } else {
+                return IniLikeLine.init;
+            }
         }
         
+        /**
+         * Set value for line. If underline line is comment, than newValue is set as comment.
+         * Prerequisites: Node must be non-null.
+         */
         @trusted void setValue(string newValue) pure {
             auto type = node.value.type;
             if (type == IniLikeLine.Type.KeyValue) {
@@ -1161,6 +1173,9 @@ public:
             }
         }
         
+        /**
+         * Check if underlined node is null.
+         */
         @nogc @safe bool isNull() const pure nothrow {
             return node is null;
         }
@@ -1501,6 +1516,9 @@ private:
  */
 class IniLikeFile
 {
+private:
+    alias ListMap!(string, IniLikeGroup, 8) GroupListMap;
+public:
     ///Behavior of ini-like file reading.
     struct ReadOptions
     {
@@ -1590,6 +1608,11 @@ Key=Second`;
         assert(byGroup.front["Key"] == "First");
         assert(byGroup.back["Key"] == "Second");
         
+        auto byNode = ilf.byNode();
+        assert(byNode.front.group.groupName == "Duplicate");
+        assert(byNode.front.key == "Duplicate");
+        assert(byNode.back.key is null);
+        
         contents = `[Duplicate]
 Key=First
 [Group]
@@ -1604,21 +1627,68 @@ Key=Second`;
         assert(byGroup2.back.groupName == "Group");
     }
     
-protected:
-    @trusted final void insertGroup(IniLikeGroup group)
-    in {
-        assert(group !is null);
-    }
-    body {
-        _listMap.insertBack(group.groupName, group);
+    /**
+     * Wrapper for internal ListMap node.
+     */
+    static struct GroupNode
+    {
+    private:
+        GroupListMap.Node* node;
+    public:
+        /**
+         * Key the group associated with.
+         * While every group has groupName, it might be added to the group list without association, therefore will not have key.
+         */
+        @nogc @trusted string key() const pure nothrow {
+            if (node) {
+                return node.key();
+            } else {
+                return null;
+            }
+        }
+        
+        /**
+         * Access underlined group.
+         */
+        @nogc @trusted IniLikeGroup group() pure nothrow {
+            if (node) {
+                return node.value();
+            } else {
+                return null;
+            }
+        }
+        
+        /**
+         * Check if underlined node is null.
+         */
+        @nogc @safe bool isNull() pure nothrow const {
+            return node is null;
+        }
     }
     
-    @trusted final void putGroup(IniLikeGroup group)
+protected:
+    /**
+     * Insert group into $(D IniLikeFile) object and use its name as key.
+     * Prerequisites: group must be non-null. It also should not be held by some other $(D IniLikeFile) object.
+     */
+    @trusted final auto insertGroup(IniLikeGroup group)
     in {
         assert(group !is null);
     }
     body {
-        _listMap.append(group);
+        return GroupNode(_listMap.insertBack(group.groupName, group));
+    }
+    
+    /**
+     * Append group to group list without associating group name with it. Can be used to add groups with duplicated names.
+     * Prerequisites: group must be non-null. It also should not be held by some other $(D IniLikeFile) object.
+     */
+    @trusted final auto putGroup(IniLikeGroup group)
+    in {
+        assert(group !is null);
+    }
+    body {
+        return GroupNode(_listMap.append(group));
     }
     
     /**
@@ -1834,6 +1904,13 @@ public:
     }
     
     /**
+     * Get $(D GroupNode) by groupName.
+     */
+    @nogc @safe final auto getNode(string groupName) nothrow pure {
+        return GroupNode(_listMap.getNode(groupName));
+    }
+    
+    /**
      * Create new group using groupName.
      * Returns: Newly created instance of IniLikeGroup.
      * Throws: 
@@ -1865,6 +1942,13 @@ public:
      */
     @nogc @safe final auto byGroup() inout nothrow {
         return _listMap.byNode().map!(node => node.value);
+    }
+    
+    /**
+     * Iterate over $(D GroupNode)s.
+     */
+    @nogc @safe final auto byNode() nothrow {
+        return _listMap.byNode().map!(node => GroupNode(node));
     }
     
     /**
@@ -1982,56 +2066,30 @@ public:
     
     /**
      * Move the group to make it the first.
-     * Returns: true if group was moved, false otherwise (no group with such name exists).
      */
-    @trusted final bool moveGroupToFront(string toMove) nothrow pure {
-        auto node = _listMap.getNode(toMove);
-        if (node) {
-            _listMap.moveToFront(node);
-            return true;
-        }
-        return false;
+    @trusted final void moveGroupToFront(GroupNode toMove) nothrow pure {
+        _listMap.moveToFront(toMove.node);
     }
     
     /**
      * Move the group to make it the last.
-     * Returns: true if group was moved, false otherwise (no group with such name exists).
      */
-    @trusted final bool moveGroupToBack(string toMove) nothrow pure {
-        auto node = _listMap.getNode(toMove);
-        if (node) {
-            _listMap.moveToBack(node);
-            return true;
-        }
-        return false;
+    @trusted final void moveGroupToBack(GroupNode toMove) nothrow pure {
+        _listMap.moveToBack(toMove.node);
     }
     
     /**
      * Move group before other.
-     * Returns: true if group was moved, false otherwise (one or both groups don't existed).
      */
-    @trusted final bool moveGroupBefore(string other, string toMove) nothrow pure {
-        auto otherNode = _listMap.getNode(other);
-        auto nodeToMove = _listMap.getNode(toMove);
-        if (nodeToMove && otherNode) {
-            _listMap.moveBefore(otherNode, nodeToMove);
-            return true;
-        }
-        return false;
+    @trusted final void moveGroupBefore(GroupNode other, GroupNode toMove) nothrow pure {
+        _listMap.moveBefore(other.node, toMove.node);
     }
     
     /**
      * Move group after other.
-     * Returns: true if group was moved, false otherwise (one or both groups don't existed).
      */
-    @trusted final bool moveGroupAfter(string other, string toMove) nothrow pure {
-        auto otherNode = _listMap.getNode(other);
-        auto nodeToMove = _listMap.getNode(toMove);
-        if (nodeToMove && otherNode) {
-            _listMap.moveAfter(otherNode, nodeToMove);
-            return true;
-        }
-        return false;
+    @trusted final void moveGroupAfter(GroupNode other, GroupNode toMove) nothrow pure {
+        _listMap.moveAfter(other.node, toMove.node);
     }
     
     @safe final ReadOptions readOptions() nothrow const pure {
@@ -2039,7 +2097,7 @@ public:
     }
 private:
     string _fileName;
-    ListMap!(string, IniLikeGroup, 8) _listMap;
+    GroupListMap _listMap;
     string[] _leadingComments;
     ReadOptions _readOptions;
 }
@@ -2070,6 +2128,11 @@ Comment=Manage files
     assert(equal(ilf.leadingComments(), ["# The first comment"]));
     assert(ilf.group("First Entry"));
     assert(ilf.group("Another Group"));
+    assert(ilf.getNode("Another Group").group is ilf.group("Another Group"));
+    assert(ilf.group("NonExistent") is null);
+    assert(ilf.getNode("NonExistent").isNull());
+    assert(ilf.getNode("NonExistent").key() is null);
+    assert(ilf.getNode("NonExistent").group() is null);
     assert(ilf.saveToString() == contents);
     
     string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
@@ -2099,6 +2162,8 @@ Comment=Manage files
     assert(firstEntry["GenericName"] == "File manager");
     assert(firstEntry.value("GenericName") == "File manager");
     assert(firstEntry.getNode("GenericName").key == "GenericName");
+    assert(firstEntry.getNode("NonExistent").key is null);
+    assert(firstEntry.getNode("NonExistent").line.type == IniLikeLine.Type.None);
     
     assert(firstEntry.value("NeedUnescape") == `yes\\i\tneed`);
     assert(firstEntry.readEntry("NeedUnescape") == "yes\\i\tneed");
@@ -2268,21 +2333,16 @@ Key3=Value3`;
 
     ilf = new IniLikeFile(iniLikeStringReader(contents));
     
-    assert(!ilf.moveGroupToFront("Nonexistent"));
-    assert(ilf.moveGroupToFront("Two"));
-    assert(ilf.byGroup().map!(g => g.groupName).equal(["Two", "One", "Three"]));
+    ilf.moveGroupToFront(ilf.getNode("Two"));
+    assert(ilf.byNode().map!(g => g.key).equal(["Two", "One", "Three"]));
     
-    assert(!ilf.moveGroupToBack("Nonexistent"));
-    assert(ilf.moveGroupToBack("One"));
-    assert(ilf.byGroup().map!(g => g.groupName).equal(["Two", "Three", "One"]));
+    ilf.moveGroupToBack(ilf.getNode("One"));
+    assert(ilf.byNode().map!(g => g.key).equal(["Two", "Three", "One"]));
     
-    assert(!ilf.moveGroupBefore("Nonexistent", "Three"));
-    assert(!ilf.moveGroupAfter("Nonexistent", "Three"));
-    
-    assert(ilf.moveGroupBefore("Two", "Three"));
+    ilf.moveGroupBefore(ilf.getNode("Two"), ilf.getNode("Three"));
     assert(ilf.byGroup().map!(g => g.groupName).equal(["Three", "Two", "One"]));
     
-    assert(ilf.moveGroupAfter("Three", "One"));
+    ilf.moveGroupAfter(ilf.getNode("Three"), ilf.getNode("One"));
     assert(ilf.byGroup().map!(g => g.groupName).equal(["Three", "One", "Two"]));
     
     auto groupOne = ilf.group("One");

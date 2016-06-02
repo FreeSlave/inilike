@@ -11,7 +11,7 @@ Note: the original purpose of this library is to serve as dependency for my othe
 Ddoc:
 
     dub build --build=docs
-    
+
 Ddox:
 
     dub build --build=ddox
