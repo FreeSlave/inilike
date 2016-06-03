@@ -1519,30 +1519,83 @@ class IniLikeFile
 private:
     alias ListMap!(string, IniLikeGroup, 8) GroupListMap;
 public:
-    ///Behavior of ini-like file reading.
-    struct ReadOptions
+    ///
+    enum DuplicateKeyPolicy : ubyte
     {
-        ///
-        enum DuplicatePolicy
-        {
-            ///Throw error on duplicate
-            throwError,
-            ///Skip duplicate without error
-            skip,
-            ///Preserve all duplicates in the list. The first found value remains accessible by key.
-            preserve
-        }
-        
+        ///Throw error on entry with duplicate key.
+        throwError,
+        ///Skip duplicate without error.
+        skip,
+        ///Preserve all duplicates in the list. The first found value remains accessible by key.
+        preserve
+    }
+    
+    ///
+    enum DuplicateGroupPolicy : ubyte
+    {
+        ///Throw error on group with duplicate name.
+        throwError,
+        ///Skip duplicate without error.
+        skip,
+        ///Preserve all duplicates in the list. The first found group remains accessible by key.
+        preserve
+    }
+    
+    ///Behavior of ini-like file reading.
+    static struct ReadOptions
+    {
         ///Behavior on groups with duplicate names.
-        DuplicatePolicy duplicateGroupPolicy = DuplicatePolicy.throwError;
+        DuplicateGroupPolicy duplicateGroupPolicy = DuplicateGroupPolicy.throwError;
         ///Behavior on duplicate keys.
-        DuplicatePolicy duplicateKeyPolicy = DuplicatePolicy.throwError;
+        DuplicateKeyPolicy duplicateKeyPolicy = DuplicateKeyPolicy.throwError;
         
         ///Behavior on invalid keys.
         IniLikeGroup.InvalidKeyPolicy invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.throwError;
         
-        ///Whether to preserve comments
-        bool preserveComments = true;
+        ///Whether to preserve comments.
+        Flag!"preserveComments" preserveComments = Yes.preserveComments;
+        
+        ///Setting parameters in any order, leaving not mentioned ones in default state.
+        @nogc @safe this(Args...)(Args args) nothrow pure {
+            foreach(arg; args) {
+                alias Unqual!(typeof(arg)) ArgType;
+                static if (is(ArgType == DuplicateKeyPolicy)) {
+                    duplicateKeyPolicy = arg;
+                } else static if (is(ArgType == DuplicateGroupPolicy)) {
+                    duplicateGroupPolicy = arg;
+                } else static if (is(ArgType == Flag!"preserveComments")) {
+                    preserveComments = arg;
+                } else static if (is(ArgType == IniLikeGroup.InvalidKeyPolicy)) {
+                    invalidKeyPolicy = arg;
+                } else {
+                    static assert(false, "Unknown argument type " ~ typeof(arg).stringof);
+                }
+            }
+        }
+        
+        ///
+        unittest
+        {
+            ReadOptions readOptions;
+    
+            readOptions = ReadOptions(No.preserveComments);
+            assert(readOptions.duplicateGroupPolicy == DuplicateGroupPolicy.throwError);
+            assert(readOptions.duplicateKeyPolicy == DuplicateKeyPolicy.throwError);
+            assert(!readOptions.preserveComments);
+            
+            readOptions = ReadOptions(DuplicateGroupPolicy.skip, DuplicateKeyPolicy.preserve);
+            assert(readOptions.duplicateGroupPolicy == DuplicateGroupPolicy.skip);
+            assert(readOptions.duplicateKeyPolicy == DuplicateKeyPolicy.preserve);
+            assert(readOptions.preserveComments);
+            
+            const duplicateGroupPolicy = DuplicateGroupPolicy.preserve;
+            immutable duplicateKeyPolicy = DuplicateKeyPolicy.skip;
+            const preserveComments = No.preserveComments;
+            readOptions = ReadOptions(duplicateGroupPolicy, IniLikeGroup.InvalidKeyPolicy.skip, preserveComments, duplicateKeyPolicy);
+            assert(readOptions.duplicateGroupPolicy == DuplicateGroupPolicy.preserve);
+            assert(readOptions.duplicateKeyPolicy == DuplicateKeyPolicy.skip);
+            assert(readOptions.invalidKeyPolicy == IniLikeGroup.InvalidKeyPolicy.skip);
+        }
     }
     
     ///
@@ -1559,10 +1612,10 @@ Name=Commander
 # The last comment`;
 
         alias IniLikeFile.ReadOptions ReadOptions;
-        ReadOptions readOptions;
-        readOptions.preserveComments = false;
+        alias IniLikeFile.DuplicateKeyPolicy DuplicateKeyPolicy;
+        alias IniLikeFile.DuplicateGroupPolicy DuplicateGroupPolicy;
         
-        IniLikeFile ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        IniLikeFile ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(No.preserveComments));
         assert(!ilf.readOptions().preserveComments);
         assert(ilf.leadingComments().empty);
         assert(equal(
@@ -1579,16 +1632,13 @@ Duplicate=First
 Key=Value
 Duplicate=Second`;
 
-        readOptions = ReadOptions.init;
-        readOptions.duplicateKeyPolicy = ReadOptions.DuplicatePolicy.skip;
-        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateKeyPolicy.skip));
         assert(equal(
             ilf.group("Group").byIniLine(), 
             [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value")]
         ));
         
-        readOptions.duplicateKeyPolicy = ReadOptions.DuplicatePolicy.preserve;
-        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateKeyPolicy.preserve));
         assert(equal(
             ilf.group("Group").byIniLine(), 
             [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromKeyValue("Duplicate", "Second")]
@@ -1601,9 +1651,7 @@ Key=First
 [Duplicate]
 Key=Second`;
 
-        readOptions = ReadOptions.init;
-        readOptions.duplicateGroupPolicy = ReadOptions.DuplicatePolicy.preserve;
-        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateGroupPolicy.preserve));
         auto byGroup = ilf.byGroup();
         assert(byGroup.front["Key"] == "First");
         assert(byGroup.back["Key"] == "Second");
@@ -1619,9 +1667,7 @@ Key=First
 [Duplicate]
 Key=Second`;
 
-        readOptions = ReadOptions.init;
-        readOptions.duplicateGroupPolicy = ReadOptions.DuplicatePolicy.skip;
-        ilf = new IniLikeFile(iniLikeStringReader(contents), null, readOptions);
+        ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateGroupPolicy.skip));
         auto byGroup2 = ilf.byGroup();
         assert(byGroup2.front["Key"] == "First");
         assert(byGroup2.back.groupName == "Group");
@@ -1731,15 +1777,14 @@ protected:
      */
     @trusted void onKeyValue(string key, string value, IniLikeGroup currentGroup, string groupName)
     {
-        alias ReadOptions.DuplicatePolicy DuplicatePolicy;
         if (currentGroup) {
             if (currentGroup.contains(key)) {
                 final switch(_readOptions.duplicateKeyPolicy) {
-                    case DuplicatePolicy.throwError:
+                    case DuplicateKeyPolicy.throwError:
                         throw new IniLikeEntryException("key already exists", groupName, key, value);
-                    case DuplicatePolicy.skip:
+                    case DuplicateKeyPolicy.skip:
                         break;
-                    case DuplicatePolicy.preserve:
+                    case DuplicateKeyPolicy.preserve:
                         currentGroup.appendValue(key, value, _readOptions.invalidKeyPolicy);
                         break;
                 }
@@ -1765,11 +1810,11 @@ protected:
     @trusted IniLikeGroup onGroup(string groupName) {
         if (group(groupName) !is null) {
             final switch(_readOptions.duplicateGroupPolicy) {
-                case ReadOptions.DuplicatePolicy.throwError:
+                case DuplicateGroupPolicy.throwError:
                     throw new IniLikeGroupException("group already exists", groupName);
-                case ReadOptions.DuplicatePolicy.skip:
+                case DuplicateGroupPolicy.skip:
                     return null;
-                case ReadOptions.DuplicatePolicy.preserve:
+                case DuplicateGroupPolicy.preserve:
                     auto toPut = createGroupByName(groupName);
                     if (toPut) {
                         putGroup(toPut);
