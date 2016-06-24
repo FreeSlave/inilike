@@ -1552,24 +1552,13 @@ public:
         ///Behavior on invalid keys.
         IniLikeGroup.InvalidKeyPolicy invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.throwError;
         
-        ///Whether to preserve comments.
+        ///Whether to preserve comments on reading.
         Flag!"preserveComments" preserveComments = Yes.preserveComments;
         
         ///Setting parameters in any order, leaving not mentioned ones in default state.
         @nogc @safe this(Args...)(Args args) nothrow pure {
             foreach(arg; args) {
-                alias Unqual!(typeof(arg)) ArgType;
-                static if (is(ArgType == DuplicateKeyPolicy)) {
-                    duplicateKeyPolicy = arg;
-                } else static if (is(ArgType == DuplicateGroupPolicy)) {
-                    duplicateGroupPolicy = arg;
-                } else static if (is(ArgType == Flag!"preserveComments")) {
-                    preserveComments = arg;
-                } else static if (is(ArgType == IniLikeGroup.InvalidKeyPolicy)) {
-                    invalidKeyPolicy = arg;
-                } else {
-                    static assert(false, "Unknown argument type " ~ typeof(arg).stringof);
-                }
+                assign(arg);
             }
         }
         
@@ -1595,6 +1584,21 @@ public:
             assert(readOptions.duplicateGroupPolicy == DuplicateGroupPolicy.preserve);
             assert(readOptions.duplicateKeyPolicy == DuplicateKeyPolicy.skip);
             assert(readOptions.invalidKeyPolicy == IniLikeGroup.InvalidKeyPolicy.skip);
+        }
+        
+        @nogc @safe void assign(T)(T arg) nothrow pure {
+            alias Unqual!(T) ArgType;
+            static if (is(ArgType == DuplicateKeyPolicy)) {
+                duplicateKeyPolicy = arg;
+            } else static if (is(ArgType == DuplicateGroupPolicy)) {
+                duplicateGroupPolicy = arg;
+            } else static if (is(ArgType == Flag!"preserveComments")) {
+                preserveComments = arg;
+            } else static if (is(ArgType == IniLikeGroup.InvalidKeyPolicy)) {
+                invalidKeyPolicy = arg;
+            } else {
+                static assert(false, "Unknown argument type " ~ typeof(arg).stringof);
+            }
         }
     }
     
@@ -1811,7 +1815,7 @@ protected:
         if (group(groupName) !is null) {
             final switch(_readOptions.duplicateGroupPolicy) {
                 case DuplicateGroupPolicy.throwError:
-                    throw new IniLikeGroupException("group already exists", groupName);
+                    throw new IniLikeGroupException("group with such name already exists", groupName);
                 case DuplicateGroupPolicy.skip:
                     return null;
                 case DuplicateGroupPolicy.preserve:
@@ -1998,7 +2002,7 @@ public:
     
     /**
      * Save object to the file using .ini-like format.
-     * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
+     * Throws: $(D ErrnoException) if the file could not be opened or an error writing to the file occured.
      * See_Also: $(D saveToString), $(D save)
      */
     @trusted final void saveToFile(string fileName) const {
