@@ -1701,12 +1701,16 @@ Key=Second`;
         /**
          * Pretty mode. Save comments, skip existing new lines, add line before the next group.
          */
-        enum pretty = WriteOptions(Yes.preserveComments, No.preserveEmptyLines, Yes.lineBetweenGroups);
+        @nogc @safe static auto pretty() nothrow pure {
+            return WriteOptions(Yes.preserveComments, No.preserveEmptyLines, Yes.lineBetweenGroups);
+        }
         
         /**
          * Exact mode. Save all comments and empty lines as is.
          */
-        enum exact = WriteOptions(Yes.preserveComments, Yes.preserveEmptyLines, No.lineBetweenGroups);
+        @nogc @safe static auto exact() nothrow pure {
+            return WriteOptions(Yes.preserveComments, Yes.preserveEmptyLines, No.lineBetweenGroups);
+        }
         
         @nogc @safe this(Args...)(Args args) nothrow pure {
             foreach(arg; args) {
