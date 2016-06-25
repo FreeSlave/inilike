@@ -1519,7 +1519,7 @@ class IniLikeFile
 private:
     alias ListMap!(string, IniLikeGroup, 8) GroupListMap;
 public:
-    ///
+    ///Behavior on duplicate key in the group.
     enum DuplicateKeyPolicy : ubyte
     {
         ///Throw error on entry with duplicate key.
@@ -1530,7 +1530,7 @@ public:
         preserve
     }
     
-    ///
+    ///Behavior on group with duplicate name in the file.
     enum DuplicateGroupPolicy : ubyte
     {
         ///Throw error on group with duplicate name.
@@ -1586,6 +1586,11 @@ public:
             assert(readOptions.invalidKeyPolicy == IniLikeGroup.InvalidKeyPolicy.skip);
         }
         
+        /**
+         * Assign arg to the struct member of corresponding type.
+         * Note:
+         *  It's compile-time error to assign parameter of type which is not part of ReadOptions.
+         */
         @nogc @safe void assign(T)(T arg) nothrow pure {
             alias Unqual!(T) ArgType;
             static if (is(ArgType == DuplicateKeyPolicy)) {
@@ -1675,6 +1680,57 @@ Key=Second`;
         auto byGroup2 = ilf.byGroup();
         assert(byGroup2.front["Key"] == "First");
         assert(byGroup2.back.groupName == "Group");
+    }
+    
+    /**
+     * Behavior of ini-like file saving.
+     * See_Also: $(D save)
+     */
+    static struct WriteOptions
+    {
+        ///Whether to preserve comments (lines that starts with '#') on saving.
+        Flag!"preserveComments" preserveComments = Yes.preserveComments;
+        ///Whether to preserve empty lines on saving.
+        Flag!"preserveEmptyLines" preserveEmptyLines = Yes.preserveEmptyLines;
+        /**
+         * Whether to write empty line after each group except for the last.
+         * New line is not written when it already exists before the next group.
+         */
+        Flag!"lineBetweenGroups" lineBetweenGroups = No.lineBetweenGroups;
+        
+        /**
+         * Pretty mode. Save comments, skip existing new lines, add line before the next group.
+         */
+        enum pretty = WriteOptions(Yes.preserveComments, No.preserveEmptyLines, Yes.lineBetweenGroups);
+        
+        /**
+         * Exact mode. Save all comments and empty lines as is.
+         */
+        enum exact = WriteOptions(Yes.preserveComments, Yes.preserveEmptyLines, No.lineBetweenGroups);
+        
+        @nogc @safe this(Args...)(Args args) nothrow pure {
+            foreach(arg; args) {
+                assign(arg);
+            }
+        }
+        
+        /**
+         * Assign arg to the struct member of corresponding type.
+         * Note:
+         *  It's compile-time error to assign parameter of type which is not part of WriteOptions.
+         */
+        @nogc @safe void assign(T)(T arg) nothrow pure {
+            alias Unqual!(T) ArgType;
+            static if (is(ArgType == Flag!"preserveEmptyLines")) {
+                preserveEmptyLines = arg;
+            } else static if (is(ArgType == Flag!"lineBetweenGroups")) {
+                lineBetweenGroups = arg;
+            } else static if (is(ArgType == Flag!"preserveComments")) {
+                preserveComments = arg;
+            } else {
+                static assert(false, "Unknown argument type " ~ typeof(arg).stringof);
+            }
+        }
     }
     
     /**
@@ -2005,46 +2061,121 @@ public:
      * Throws: $(D ErrnoException) if the file could not be opened or an error writing to the file occured.
      * See_Also: $(D saveToString), $(D save)
      */
-    @trusted final void saveToFile(string fileName) const {
+    @trusted final void saveToFile(string fileName, const WriteOptions options = WriteOptions.exact) const {
         import std.stdio : File;
         
         auto f = File(fileName, "w");
         void dg(in string line) {
             f.writeln(line);
         }
-        save(&dg);
+        save(&dg, options);
     }
     
     /**
      * Save object to string using .ini like format.
      * Returns: A string that represents the contents of file.
+     * Note: The resulting string differs from the contents that would be written to file via $(D saveToFile) 
+     * in the way it does not add new line character at the end of the last line.
      * See_Also: $(D saveToFile), $(D save)
      */
-    @trusted final string saveToString() const {
+    @trusted final string saveToString(const WriteOptions options = WriteOptions.exact) const {
         auto a = appender!(string[])();
-        save(a);
+        save(a, options);
         return a.data.join("\n");
+    }
+    
+    ///
+    unittest
+    {
+        string contents = 
+`
+# Leading comment
+[First group]
+# Comment inside
+Key=Value
+[Second group]
+
+Key=Value
+
+[Third group]
+Key=Value`;
+
+        auto ilf = new IniLikeFile(iniLikeStringReader(contents));
+        assert(ilf.saveToString(WriteOptions.exact) == contents);
+        
+        assert(ilf.saveToString(WriteOptions.pretty) == 
+`# Leading comment
+[First group]
+# Comment inside
+Key=Value
+
+[Second group]
+Key=Value
+
+[Third group]
+Key=Value`);
+        
+        assert(ilf.saveToString(WriteOptions(No.preserveComments, No.preserveEmptyLines)) == 
+`[First group]
+Key=Value
+[Second group]
+Key=Value
+[Third group]
+Key=Value`);
+        
+        assert(ilf.saveToString(WriteOptions(No.preserveComments, No.preserveEmptyLines, Yes.lineBetweenGroups)) == 
+`[First group]
+Key=Value
+
+[Second group]
+Key=Value
+
+[Third group]
+Key=Value`);
     }
     
     /**
      * Use Output range or delegate to retrieve strings line by line. 
      * Those strings can be written to the file or be showed in text area.
-     * Note: returned strings don't have trailing newline character.
+     * Note: Output strings don't have trailing newline character.
+     * See_Also: $(D saveToFile), $(D saveToString)
      */
-    final void save(OutRange)(OutRange sink) const if (isOutputRange!(OutRange, string)) {
+    final void save(OutRange)(OutRange sink, const WriteOptions options = WriteOptions.exact) const if (isOutputRange!(OutRange, string)) {
         foreach(line; leadingComments()) {
-            put(sink, line);
+            if (options.preserveComments) {
+                if (line.empty && !options.preserveEmptyLines) {
+                    continue;
+                }
+                put(sink, line);
+            }
         }
+        bool firstGroup = true;
+        bool lastWasEmpty = false;
         
         foreach(group; byGroup()) {
+            if (!firstGroup && !lastWasEmpty && options.lineBetweenGroups) {
+                put(sink, "");
+            }
+            
             put(sink, "[" ~ group.groupName ~ "]");
             foreach(line; group.byIniLine()) {
+                lastWasEmpty = false;
                 if (line.type == IniLikeLine.Type.Comment) {
+                    if (!options.preserveComments) {
+                        continue;
+                    }
+                    if (line.comment.empty) {
+                        if (!options.preserveEmptyLines) {
+                            continue;
+                        }
+                        lastWasEmpty = true;
+                    }
                     put(sink, line.comment);
                 } else if (line.type == IniLikeLine.Type.KeyValue) {
                     put(sink, line.key ~ "=" ~ line.value);
                 }
             }
+            firstGroup = false;
         }
     }
     
@@ -2182,7 +2313,7 @@ Comment=Manage files
     assert(ilf.getNode("NonExistent").isNull());
     assert(ilf.getNode("NonExistent").key() is null);
     assert(ilf.getNode("NonExistent").group() is null);
-    assert(ilf.saveToString() == contents);
+    assert(ilf.saveToString(IniLikeFile.WriteOptions.exact) == contents);
     
     string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
     try {
