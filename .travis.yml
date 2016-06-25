@@ -3,7 +3,7 @@ matrix:
     include:
         - d: dmd-2.069.2
           env: USE_DOVERALLS=true
-        - d: d: ldc-0.16.1
+        - d: ldc-0.16.1
         - d: gdc-4.9.2
   
 script:
