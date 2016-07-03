@@ -185,10 +185,12 @@ unittest
 }
 
 /**
-* Test whether the string is valid key in terms of Desktop File Specification. Not actually used in inilike.file.IniLikeFile, but can be used in derivatives.
-* Only the characters A-Za-z0-9- may be used in key names. See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html, Basic format of the file)
+* Test whether the string is valid key in terms of Desktop File Specification. 
+* 
+* Not actually used in $(D inilike.file.IniLikeFile), but can be used in derivatives.
+* Only the characters A-Za-z0-9- may be used in key names.
 * Note: this function automatically separate key from locale. Locale is validated against isValidKey.
-* See_Also: $(D isValidKey)
+* See_Also: $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html, Basic format of the file), $(D isValidKey)
 */
 @nogc @safe bool isValidDesktopFileKey(in char[] desktopKey) pure nothrow {
     auto t = separateFromLocale(desktopKey);

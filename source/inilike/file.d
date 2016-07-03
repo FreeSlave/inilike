@@ -1314,6 +1314,7 @@ protected:
     /**
      * Validate key before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes. 
+     * 
      * Default implementation checks if key is not empty string, does not look like comment and does not contain new line or carriage return characters.
      * Params:
      *  key = key to validate.
@@ -1364,6 +1365,7 @@ protected:
     /**
      * Validate value for key before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes. 
+     * 
      * Default implementation checks if value is escaped.
      * Params:
      *  key = key the value is being set to.
@@ -1860,6 +1862,7 @@ protected:
     
     /**
      * Create iniLikeGroup by groupName during file parsing.
+     * 
      * This function can be reimplemented in derived classes, 
      * e.g. to insert additional checks or create specific derived class depending on groupName.
      * Returned value is later passed to $(D onCommentInGroup) and $(D onKeyValue) methods as currentGroup. 
