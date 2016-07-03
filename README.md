@@ -8,20 +8,6 @@ Inilike is D library for parsing **.ini-like** files used in Freedesktop systems
 
 Note: the original purpose of this library is to serve as dependency for my other projects, e.g. [desktopfile](https://github.com/MyLittleRobo/desktopfile) and [icontheme](https://github.com/MyLittleRobo/icontheme). It may be not suitable to save configuration files using this library. You have been warned.
 
-## Generating documentation
-
-Ddoc:
-
-    dub build --build=docs
-
-Ddox:
-
-    dub build --build=ddox
-
-## Running tests
-
-    dub test
-
 ## Format
 
 Freedesktop specifications use the format which is sometimes referred to as **.ini-like** because it's very similiar to **INI** used in MS Windows with small differences:
