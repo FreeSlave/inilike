@@ -567,15 +567,13 @@ unittest
     toReturn.put(value[0..i]);
     
     for (; i < value.length; i++) {
-        if (value[i] == '\\') {
-            if (i+1 < value.length) {
-                const char c = value[i+1];
-                auto t = pairs.find!"a[0] == b[0]"(tuple(c,c));
-                if (!t.empty) {
-                    toReturn.put(t.front[1]);
-                    i++;
-                    continue;
-                }
+        if (value[i] == '\\' && i+1 < value.length) {
+            const char c = value[i+1];
+            auto t = pairs.find!"a[0] == b[0]"(tuple(c,c));
+            if (!t.empty) {
+                toReturn.put(t.front[1]);
+                i++;
+                continue;
             }
         }
         toReturn.put(value[i]);
