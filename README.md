@@ -2,11 +2,11 @@
 
 Inilike is D library for parsing **.ini-like** files used in Freedesktop systems in various places (.desktop files, icon themes, mimeapps.list, mimeinfo.cache, trashcan files on freedesktop, etc.)
 
-[![Build Status](https://travis-ci.org/MyLittleRobo/inilike.svg?branch=master)](https://travis-ci.org/MyLittleRobo/inilike?branch=master) [![Coverage Status](https://coveralls.io/repos/MyLittleRobo/inilike/badge.svg?branch=master&service=github)](https://coveralls.io/github/MyLittleRobo/inilike?branch=master)
+[![Build Status](https://travis-ci.org/FreeSlave/inilike.svg?branch=master)](https://travis-ci.org/FreeSlave/inilike?branch=master) [![Coverage Status](https://coveralls.io/repos/FreeSlave/inilike/badge.svg?branch=master&service=github)](https://coveralls.io/github/FreeSlave/inilike?branch=master)
 
-[Online documentation](https://mylittlerobo.github.io/d-freedesktop/docs/inilike.html)
+[Online documentation](https://freeslave.github.io/d-freedesktop/docs/inilike.html)
 
-Note: the original purpose of this library is to serve as dependency for my other projects, e.g. [desktopfile](https://github.com/MyLittleRobo/desktopfile) and [icontheme](https://github.com/MyLittleRobo/icontheme). It may be not suitable to save configuration files using this library. You have been warned.
+Note: the original purpose of this library is to serve as dependency for my other projects, e.g. [desktopfile](https://github.com/FreeSlave/desktopfile) and [icontheme](https://github.com/FreeSlave/icontheme). It may be not suitable to save configuration files using this library. You have been warned.
 
 ## Format
 
