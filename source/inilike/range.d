@@ -1,12 +1,12 @@
 /**
  * Parsing contents of ini-like files via range-based interface.
- * Authors: 
+ * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
  *  Roman Chistokhodov, 2015-2016
- * License: 
+ * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * See_Also: 
+ * See_Also:
  *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
 
@@ -27,7 +27,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
     {
         _range = range;
     }
-    
+
     /**
      * Iterate through lines before any group header. It does not check if all lines are comments or empty lines.
      */
@@ -35,7 +35,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
     {
         return _range.until!(isGroupHeader);
     }
-    
+
     /**
      * Object representing single group (section) being parsed in .ini-like file.
      */
@@ -46,25 +46,25 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
             _range = range;
             _originalLine = originalLine;
         }
-        
+
         /**
          * Name of group being parsed (without brackets).
-         * Note: This can become invalid during parsing the Input Range 
+         * Note: This can become invalid during parsing the Input Range
          * (e.g. if string buffer storing this value is reused in later reads).
          */
         auto groupName() {
             return parseGroupHeader(_originalLine);
         }
-        
+
         /**
          * Original line of group header (i.e. name with brackets).
-         * Note: This can become invalid during parsing the Input Range 
+         * Note: This can become invalid during parsing the Input Range
          * (e.g. if string buffer storing this value is reused in later reads).
          */
         auto originalLine() {
             return _originalLine;
         }
-        
+
         /**
          * Iterate over group entries - may be key-value pairs as well as comments or empty lines.
          */
@@ -72,12 +72,12 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
         {
             return _range.until!(isGroupHeader);
         }
-        
+
     private:
         ElementType!Range _originalLine;
         Range _range;
     }
-    
+
     /**
      * Iterate thorugh groups of .ini-like file.
      * Returns: Range of Group objects.
@@ -96,17 +96,17 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
                 }
                 _currentGroup = Group!Range(_range, line);
             }
-            
+
             auto front()
             {
                 return _currentGroup;
             }
-            
+
             bool empty()
             {
                 return _currentGroup.groupName.empty;
             }
-            
+
             void popFront()
             {
                 _range = _range.find!(isGroupHeader);
@@ -121,7 +121,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
             Group!Range _currentGroup;
             Range _range;
         }
-        
+
         return ByGroup(_range.find!(isGroupHeader));
     }
 private:
@@ -143,7 +143,7 @@ auto iniLikeRangeReader(Range)(Range range)
 ///
 unittest
 {
-    string contents = 
+    string contents =
 `First comment
 Second comment
 [First group]
@@ -157,18 +157,18 @@ KeyValue4
 KeyValue5
 KeyValue6`;
     auto r = iniLikeRangeReader(contents.splitLines());
-    
+
     auto byLeadingLines = r.byLeadingLines;
-    
+
     assert(byLeadingLines.front == "First comment");
     assert(byLeadingLines.equal(["First comment", "Second comment"]));
-    
+
     auto byGroup = r.byGroup;
-    
+
     assert(byGroup.front.groupName == "First group");
     assert(byGroup.front.originalLine == "[First group]");
-    
-    
+
+
     assert(byGroup.front.byEntry.front == "KeyValue1");
     assert(byGroup.front.byEntry.equal(["KeyValue1", "KeyValue2"]));
     byGroup.popFront();

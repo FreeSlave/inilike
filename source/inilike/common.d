@@ -1,12 +1,12 @@
 /**
  * Common functions for dealing with entries in ini-like file.
- * Authors: 
+ * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
  *  Roman Chistokhodov, 2015-2016
- * License: 
+ * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * See_Also: 
+ * See_Also:
  *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
 
@@ -19,9 +19,9 @@ package {
     import std.traits;
     import std.typecons;
     import std.conv : to;
-    
+
     static if( __VERSION__ < 2066 ) enum nogc = 1;
-    
+
     auto keyValueTuple(String)(String key, String value)
     {
         alias KeyValueTuple = Tuple!(String, "key", String, "value");
@@ -54,7 +54,7 @@ private @nogc @safe auto simpleStripRight(inout(char)[] s) pure nothrow
             break;
         }
     }
-    
+
     return s[0..$-spaceNum];
 }
 
@@ -117,7 +117,7 @@ unittest
 {
     assert(parseGroupHeader("[Group name]") == "Group name");
     assert(parseGroupHeader("NotGroupName") == string.init);
-    
+
     assert(parseGroupHeader("[Group name]".dup) == "Group name".dup);
 }
 
@@ -131,7 +131,7 @@ unittest
     auto t = s.findSplit("=");
     auto key = t[0];
     auto value = t[2];
-    
+
     if (key.length && t[1].length) {
         return keyValueTuple(key, value);
     }
@@ -145,7 +145,7 @@ unittest
     assert(parseKeyValue("Key=") == tuple("Key", string.init));
     assert(parseKeyValue("=Value") == tuple(string.init, string.init));
     assert(parseKeyValue("NotKeyValue") == tuple(string.init, string.init));
-    
+
     assert(parseKeyValue("Key=Value".dup) == tuple("Key".dup, "Value".dup));
 }
 
@@ -185,8 +185,8 @@ unittest
 }
 
 /**
-* Test whether the string is valid key in terms of Desktop File Specification. 
-* 
+* Test whether the string is valid key in terms of Desktop File Specification.
+*
 * Not actually used in $(D inilike.file.IniLikeFile), but can be used in derivatives.
 * Only the characters A-Za-z0-9- may be used in key names.
 * Note: this function automatically separate key from locale. Locale is validated against isValidKey.
@@ -196,15 +196,15 @@ unittest
     auto t = separateFromLocale(desktopKey);
     auto key = t[0];
     auto locale = t[1];
-    
+
     if (locale.length && !isValidKey(locale)) {
         return false;
     }
-    
+
     @nogc @safe static bool isValidDesktopFileKeyChar(char c) pure nothrow {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
     }
-    
+
     if (key.empty) {
         return false;
     }
@@ -236,7 +236,7 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     assert(isTrue("true"));
     assert(isTrue("1"));
@@ -252,7 +252,7 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     assert(isFalse("false"));
     assert(isFalse("0"));
@@ -268,7 +268,7 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     assert(isBoolean("true"));
     assert(isBoolean("1"));
@@ -298,8 +298,8 @@ unittest
  * See_Also: $(D parseLocaleName)
  */
 @safe String makeLocaleName(String)(
-    String lang, String country = null, 
-    String encoding = null, 
+    String lang, String country = null,
+    String encoding = null,
     String modifier = null) pure
 if (isSomeString!String && is(ElementEncodingType!String : char))
 {
@@ -315,7 +315,7 @@ unittest
     assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
     assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
     assert(makeLocaleName("ru", string.init, string.init, "mod") == "ru@mod");
-    
+
     assert(makeLocaleName("ru".dup, (char[]).init, (char[]).init, "mod".dup) == "ru@mod".dup);
 }
 
@@ -328,27 +328,27 @@ unittest
 {
     auto modifiderSplit = findSplit(locale, "@");
     auto modifier = modifiderSplit[2];
-    
+
     auto encodongSplit = findSplit(modifiderSplit[0], ".");
     auto encoding = encodongSplit[2];
-    
+
     auto countrySplit = findSplit(encodongSplit[0], "_");
     auto country = countrySplit[2];
-    
+
     auto lang = countrySplit[0];
-    
+
     alias LocaleTuple = Tuple!(String, "lang", String, "country", String, "encoding", String, "modifier");
-    
+
     return LocaleTuple(lang, country, encoding, modifier);
 }
 
 ///
-unittest 
+unittest
 {
     assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
     assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
     assert(parseLocaleName("ru_RU") == tuple("ru", "RU", string.init, string.init));
-    
+
     assert(parseLocaleName("ru_RU.UTF-8@mod".dup) == tuple("ru".dup, "RU".dup, "UTF-8".dup, "mod".dup));
 }
 
@@ -387,7 +387,7 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     string key = "Name";
     assert(localizedKey(key, "") == key);
@@ -404,13 +404,13 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
     assert(localizedKey("Name".dup, "ru".dup, "RU".dup) == "Name[ru_RU]".dup);
 }
 
-/** 
+/**
  * Separate key name into non-localized key and locale name.
  * If key is not localized returns original key and empty string.
  * Returns: tuple of key and locale name.
@@ -427,11 +427,11 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
     assert(separateFromLocale("Name") == tuple("Name", string.init));
-    
+
     char[] mutableString = "Hello".dup;
     assert(separateFromLocale(mutableString) == tuple(mutableString, typeof(mutableString).init));
 }
@@ -448,24 +448,24 @@ unittest
  * Note: value with empty locale is considered better choice than value with locale that does not match the original one.
  */
 @nogc @trusted auto chooseLocalizedValue(String)(
-    String locale, 
-    String firstLocale,  String firstValue, 
+    String locale,
+    String firstLocale,  String firstValue,
     String secondLocale, String secondValue) pure nothrow
     if (isSomeString!String && is(ElementEncodingType!String : char))
-{   
+{
     const lt = parseLocaleName(locale);
     const lt1 = parseLocaleName(firstLocale);
     const lt2 = parseLocaleName(secondLocale);
-    
+
     int score1, score2;
-    
+
     if (lt.lang == lt1.lang) {
         score1 = 1 + ((lt.country == lt1.country) ? 2 : 0 ) + ((lt.modifier == lt1.modifier) ? 1 : 0);
     }
     if (lt.lang == lt2.lang) {
         score2 = 1 + ((lt.country == lt2.country) ? 2 : 0 ) + ((lt.modifier == lt2.modifier) ? 1 : 0);
     }
-    
+
     if (score1 == 0 && score2 == 0) {
         if (firstLocale.empty && !firstValue.empty) {
             return tuple(firstLocale, firstValue);
@@ -475,7 +475,7 @@ unittest
             return tuple(String.init, String.init);
         }
     }
-    
+
     if (score1 >= score2) {
         return tuple(firstLocale, firstValue);
     } else {
@@ -491,14 +491,14 @@ unittest
     assert(chooseLocalizedValue(locale, "fr_FR", "Programmeur", string.init, "Programmer") == tuple(string.init, "Programmer"));
     assert(chooseLocalizedValue(locale, string.init, "Programmer", "de_DE", "Programmierer") == tuple(string.init, "Programmer"));
     assert(chooseLocalizedValue(locale, "fr_FR", "Programmeur", "de_DE", "Programmierer") == tuple(string.init, string.init));
-    
+
     assert(chooseLocalizedValue(string.init, string.init, "Value", string.init, string.init) == tuple(string.init, "Value"));
     assert(chooseLocalizedValue(locale, string.init, "Value", string.init, string.init) == tuple(string.init, "Value"));
     assert(chooseLocalizedValue(locale, string.init, string.init, string.init, "Value") == tuple(string.init, "Value"));
-    
+
     assert(chooseLocalizedValue(locale, "ru_RU", "Программист", "ru@jargon", "Кодер") == tuple("ru_RU", "Программист"));
     assert(chooseLocalizedValue(locale, "ru_RU", "Программист", "ru_RU@jargon", "Кодер") == tuple("ru_RU@jargon", "Кодер"));
-    
+
     assert(chooseLocalizedValue(locale, "ru", "Разработчик", "ru_RU", "Программист") == tuple("ru_RU", "Программист"));
 }
 
@@ -528,7 +528,7 @@ unittest
 }
 
 /**
- * Escapes string by replacing special symbols with escaped sequences. 
+ * Escapes string by replacing special symbols with escaped sequences.
  * These symbols are: '\\' (backslash), '\n' (newline), '\r' (carriage return) and '\t' (tab).
  * Returns: Escaped string.
  * See_Also: $(D unescapeValue)
@@ -538,7 +538,7 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`); // notice how the string on the right is raw.
     assert("a\\next\nline\top".dup.escapeValue() == `a\\next\nline\top`.dup);
@@ -562,10 +562,10 @@ unittest
     if (i == value.length) {
         return value;
     }
-    
+
     auto toReturn = appender!(typeof(value))();
     toReturn.put(value[0..i]);
-    
+
     for (; i < value.length; i++) {
         if (value[i] == '\\' && i+1 < value.length) {
             const char c = value[i+1];
@@ -607,7 +607,7 @@ unittest
 }
 
 ///
-unittest 
+unittest
 {
     assert(`a\\next\nline\top`.unescapeValue() == "a\\next\nline\top"); // notice how the string on the left is raw.
     assert(`\\next\nline\top`.unescapeValue() == "\\next\nline\top");

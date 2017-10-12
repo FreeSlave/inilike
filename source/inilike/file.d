@@ -1,12 +1,12 @@
 /**
  * Class representation of ini-like file.
- * Authors: 
+ * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
  *  Roman Chistokhodov, 2015-2016
- * License: 
+ * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * See_Also: 
+ * See_Also:
  *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
 
@@ -41,10 +41,10 @@ private @trusted IniLikeLine makeCommentLine(string line) pure nothrow
  * Technically this is list with optional value access by key.
  */
 struct ListMap(K,V, size_t chunkSize = 32)
-{       
+{
     ///
     @disable this(this);
-    
+
     /**
      * Insert key-value pair to the front of list.
      * Returns: Inserted node.
@@ -54,7 +54,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putToFront(newNode);
         return newNode;
     }
-    
+
     /**
      * Insert key-value pair to the back of list.
      * Returns: Inserted node.
@@ -64,7 +64,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putToBack(newNode);
         return newNode;
     }
-    
+
     /**
      * Insert key-value pair before some node in the list.
      * Returns: Inserted node.
@@ -74,7 +74,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putBefore(node, newNode);
         return newNode;
     }
-    
+
     /**
      * Insert key-value pair after some node in the list.
      * Returns: Inserted node.
@@ -84,7 +84,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putAfter(node, newNode);
         return newNode;
     }
-    
+
     /**
      * Add value at the start of list.
      * Returns: Inserted node.
@@ -94,7 +94,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putToFront(newNode);
         return newNode;
     }
-    
+
     /**
      * Add value at the end of list.
      * Returns: Inserted node.
@@ -104,7 +104,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putToBack(newNode);
         return newNode;
     }
-    
+
     /**
      * Add value before some node in the list.
      * Returns: Inserted node.
@@ -114,7 +114,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putBefore(node, newNode);
         return newNode;
     }
-    
+
     /**
      * Add value after some node in the list.
      * Returns: Inserted node.
@@ -124,7 +124,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         putAfter(node, newNode);
         return newNode;
     }
-    
+
     /**
      * Move node to the front of list.
      */
@@ -133,11 +133,11 @@ struct ListMap(K,V, size_t chunkSize = 32)
         if (_head is toMove) {
             return;
         }
-        
+
         pullOut(toMove);
         putToFront(toMove);
     }
-    
+
     /**
      * Move node to the back of list.
      */
@@ -146,11 +146,11 @@ struct ListMap(K,V, size_t chunkSize = 32)
         if (_tail is toMove) {
             return;
         }
-        
+
         pullOut(toMove);
         putToBack(toMove);
     }
-    
+
     /**
      * Move node to the location before other node.
      */
@@ -158,11 +158,11 @@ struct ListMap(K,V, size_t chunkSize = 32)
         if (other is toMove) {
             return;
         }
-        
+
         pullOut(toMove);
         putBefore(other, toMove);
     }
-    
+
     /**
      * Move node to the location after other node.
      */
@@ -170,29 +170,29 @@ struct ListMap(K,V, size_t chunkSize = 32)
         if (other is toMove) {
             return;
         }
-        
+
         pullOut(toMove);
         putAfter(other, toMove);
     }
-    
+
     /**
      * Remove node from list. It also becomes unaccessible via key lookup.
      */
     void remove(Node* toRemove)
     {
         pullOut(toRemove);
-        
+
         if (toRemove.hasKey()) {
             _dict.remove(toRemove.key);
         }
-        
+
         if (_lastEmpty) {
             _lastEmpty.next = toRemove;
         }
         toRemove.prev = _lastEmpty;
         _lastEmpty = toRemove;
     }
-    
+
     /**
      * Remove value by key.
      * Returns: true if node with such key was found and removed. False otherwise.
@@ -205,21 +205,21 @@ struct ListMap(K,V, size_t chunkSize = 32)
         }
         return false;
     }
-    
+
     /**
      * Remove the first node.
      */
     void removeFront() {
         remove(_head);
     }
-    
+
     /**
      * Remove the last node.
      */
     void removeBack() {
         remove(_tail);
     }
-    
+
     /**
      * Get list node by key.
      * Returns: Found Node or null if container does not have node associated with key.
@@ -231,54 +231,54 @@ struct ListMap(K,V, size_t chunkSize = 32)
         }
         return null;
     }
-    
+
     private static struct ByNode(NodeType)
     {
     private:
         NodeType* _begin;
         NodeType* _end;
-        
+
     public:
         bool empty() const {
             return _begin is null || _end is null || _begin.prev is _end || _end.next is _begin;
         }
-        
+
         auto front() {
             return _begin;
         }
-        
+
         auto back() {
             return _end;
         }
-        
+
         void popFront() {
             _begin = _begin.next;
         }
-        
+
         void popBack() {
             _end = _end.prev;
         }
-        
+
         @property auto save() {
             return this;
         }
     }
-    
+
     /**
      * Iterate over list nodes.
      * See_Also: $(D byEntry)
      */
-    auto byNode() 
+    auto byNode()
     {
         return ByNode!Node(_head, _tail);
     }
-    
+
     ///ditto
     auto byNode() const
     {
         return ByNode!(const(Node))(_head, _tail);
     }
-    
+
     /**
      * Iterate over nodes mapped to Entry elements (useful for testing).
      */
@@ -286,7 +286,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
         import std.algorithm : map;
         return byNode().map!(node => node.toEntry());
     }
-    
+
     /**
      * Represenation of list node.
      */
@@ -297,26 +297,26 @@ struct ListMap(K,V, size_t chunkSize = 32)
         bool _hasKey;
         Node* _prev;
         Node* _next;
-        
+
         @trusted this(K key, V value) pure nothrow {
             _key = key;
             _value = value;
             _hasKey = true;
         }
-        
+
         @trusted this(V value) pure nothrow {
             _value = value;
             _hasKey = false;
         }
-        
+
         @trusted void prev(Node* newPrev) pure nothrow {
             _prev = newPrev;
         }
-        
+
         @trusted void next(Node* newNext) pure nothrow {
             _next = newNext;
         }
-        
+
     public:
         /**
          * Get stored value.
@@ -324,42 +324,42 @@ struct ListMap(K,V, size_t chunkSize = 32)
         @trusted inout(V) value() inout pure nothrow {
             return _value;
         }
-        
+
         /**
          * Set stored value.
          */
         @trusted void value(V newValue) pure nothrow {
             _value = newValue;
         }
-        
+
         /**
          * Tell whether this node is a key-value node.
          */
         @trusted bool hasKey() const pure nothrow {
             return _hasKey;
         }
-        
+
         /**
          * Key in key-value node.
          */
         @trusted auto key() const pure nothrow {
             return _key;
         }
-        
+
         /**
          * Access previous node in the list.
          */
         @trusted inout(Node)* prev() inout pure nothrow {
             return _prev;
         }
-        
+
         /**
          * Access next node in the list.
          */
         @trusted inout(Node)* next() inout pure nothrow {
             return _next;
         }
-        
+
         ///
         auto toEntry() const {
             static if (is(V == class)) {
@@ -369,10 +369,10 @@ struct ListMap(K,V, size_t chunkSize = 32)
                 } else {
                     return Entry!T(rebindable(_value));
                 }
-                
+
             } else {
                 alias V T;
-                
+
                 if (hasKey()) {
                     return Entry!T(_key, _value);
                 } else {
@@ -381,7 +381,7 @@ struct ListMap(K,V, size_t chunkSize = 32)
             }
         }
     }
-    
+
     /// Mapping of Node to structure.
     static struct Entry(T = V)
     {
@@ -389,42 +389,42 @@ struct ListMap(K,V, size_t chunkSize = 32)
         K _key;
         T _value;
         bool _hasKey;
-        
+
     public:
         ///
         this(T value) {
             _value = value;
             _hasKey = false;
         }
-        
+
         ///
         this(K key, T value) {
             _key = key;
             _value = value;
             _hasKey = true;
         }
-        
+
         ///
         auto value() inout {
             return _value;
         }
-        
+
         ///
         auto key() const {
             return _key;
         }
-        
+
         ///
         bool hasKey() const {
             return _hasKey;
         }
     }
-    
+
 private:
-    void putToFront(Node* toPut) 
+    void putToFront(Node* toPut)
     in {
         assert(toPut !is null);
-    } 
+    }
     body {
         if (_head) {
             _head.prev = toPut;
@@ -435,7 +435,7 @@ private:
             _tail = toPut;
         }
     }
-    
+
     void putToBack(Node* toPut)
     in {
         assert(toPut !is null);
@@ -450,12 +450,12 @@ private:
             _head = toPut;
         }
     }
-    
+
     void putBefore(Node* node, Node* toPut)
     in {
         assert(toPut !is null);
         assert(node !is null);
-    } 
+    }
     body {
         toPut.prev = node.prev;
         if (toPut.prev) {
@@ -463,13 +463,13 @@ private:
         }
         toPut.next = node;
         node.prev = toPut;
-        
+
         if (node is _head) {
             _head = toPut;
         }
     }
-    
-    void putAfter(Node* node, Node* toPut) 
+
+    void putAfter(Node* node, Node* toPut)
     in {
         assert(toPut !is null);
         assert(node !is null);
@@ -481,13 +481,13 @@ private:
         }
         toPut.prev = node;
         node.next = toPut;
-        
+
         if (node is _tail) {
             _tail = toPut;
         }
     }
-    
-    void pullOut(Node* node) 
+
+    void pullOut(Node* node)
     in {
         assert(node !is null);
     }
@@ -498,28 +498,28 @@ private:
         if (node.prev) {
             node.prev.next = node.next;
         }
-        
+
         if (node is _head) {
             _head = node.next;
         }
         if (node is _tail) {
             _tail = node.prev;
         }
-        
+
         node.next = null;
         node.prev = null;
     }
-    
+
     Node* givePlace(K key, V value) {
         auto newNode = Node(key, value);
         return givePlace(newNode);
     }
-    
+
     Node* givePlace(V value) {
         auto newNode = Node(value);
         return givePlace(newNode);
     }
-    
+
     Node* givePlace(ref Node node) {
         Node* toReturn;
         if (_lastEmpty is null) {
@@ -530,11 +530,11 @@ private:
                 if (storageIndex >= _additonalStorages.length) {
                     _additonalStorages ~= (Node[chunkSize]).init;
                 }
-                
+
                 size_t index = (_storageSize - chunkSize) % chunkSize;
                 toReturn = &_additonalStorages[storageIndex][index];
             }
-            
+
             _storageSize++;
         } else {
             toReturn = _lastEmpty;
@@ -545,21 +545,21 @@ private:
             toReturn.next = null;
             toReturn.prev = null;
         }
-        
+
         toReturn._hasKey = node._hasKey;
         toReturn._key = node._key;
         toReturn._value = node._value;
-        
+
         if (toReturn.hasKey()) {
             _dict[toReturn.key] = toReturn;
         }
         return toReturn;
     }
-    
+
     Node[chunkSize] _storage;
     Node[chunkSize][] _additonalStorages;
     size_t _storageSize;
-    
+
     Node* _tail;
     Node* _head;
     Node* _lastEmpty;
@@ -577,16 +577,16 @@ unittest
 {
     import std.algorithm : equal;
     import std.range : ElementType;
-    
+
     alias ListMap!(string, string, 2) TestListMap;
-    
+
     TestListMap listMap;
     alias typeof(listMap).Node Node;
     alias ElementType!(typeof(listMap.byEntry())) Entry;
-    
+
     assert(listMap.byEntry().empty);
     assert(listMap.getNode("Nonexistent") is null);
-    
+
     listMap.insertFront("Start", "Fast");
     assert(listMap.getNode("Start") !is null);
     assert(listMap.getNode("Start").key() == "Start");
@@ -596,148 +596,148 @@ unittest
     assert(listMap.remove("Start"));
     assert(listMap.byEntry().empty);
     assert(listMap.getNode("Start") is null);
-    
+
     listMap.insertBack("Finish", "Bad");
     assert(listMap.byEntry().equal([Entry("Finish", "Bad")]));
     assert(listMap.getNode("Finish").value() == "Bad");
-    
+
     listMap.insertFront("Begin", "Good");
     assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Finish", "Bad")]));
     assert(listMap.getNode("Begin").value() == "Good");
-    
+
     listMap.insertFront("Start", "Slow");
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad")]));
-    
+
     listMap.insertAfter(listMap.getNode("Begin"), "Middle", "Person");
     assert(listMap.getNode("Middle").value() == "Person");
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Middle", "Person"), Entry("Finish", "Bad")]));
-    
+
     listMap.insertBefore(listMap.getNode("Middle"), "Mean", "Man");
     assert(listMap.getNode("Mean").value() == "Man");
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Mean", "Man"), Entry("Middle", "Person"), Entry("Finish", "Bad")]));
-    
+
     assert(listMap.remove("Mean"));
     assert(listMap.remove("Middle"));
-    
+
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad")]));
-    
+
     listMap.insertFront("New", "Era");
     assert(listMap.byEntry().equal([Entry("New", "Era"), Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad")]));
-    
+
     listMap.insertBack("Old", "Epoch");
     assert(listMap.byEntry().equal([Entry("New", "Era"), Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad"), Entry("Old", "Epoch")]));
-    
+
     listMap.moveToBack(listMap.getNode("New"));
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Finish", "Bad"), Entry("Old", "Epoch"), Entry("New", "Era")]));
-    
+
     listMap.moveToFront(listMap.getNode("Begin"));
     assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Start", "Slow"), Entry("Finish", "Bad"), Entry("Old", "Epoch"), Entry("New", "Era")]));
-    
+
     listMap.moveAfter(listMap.getNode("Finish"), listMap.getNode("Start"));
     assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Finish", "Bad"), Entry("Start", "Slow"), Entry("Old", "Epoch"), Entry("New", "Era")]));
-    
+
     listMap.moveBefore(listMap.getNode("Finish"), listMap.getNode("Old"));
     assert(listMap.byEntry().equal([Entry("Begin", "Good"), Entry("Old", "Epoch"), Entry("Finish", "Bad"), Entry("Start", "Slow"), Entry("New", "Era")]));
-    
+
     listMap.moveBefore(listMap.getNode("Begin"), listMap.getNode("Start"));
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Old", "Epoch"), Entry("Finish", "Bad"), Entry("New", "Era")]));
-    
+
     listMap.moveAfter(listMap.getNode("New"), listMap.getNode("Finish"));
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Begin", "Good"), Entry("Old", "Epoch"), Entry("New", "Era"), Entry("Finish", "Bad")]));
-    
+
     listMap.getNode("Begin").value = "Evil";
     assert(listMap.getNode("Begin").value() == "Evil");
-    
+
     listMap.remove("Begin");
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Old", "Epoch"), Entry("New", "Era"), Entry("Finish", "Bad")]));
     listMap.remove("Old");
     listMap.remove("New");
     assert(!listMap.remove("Begin"));
-    
+
     Node* shebang = listMap.prepend("Shebang");
     Node* endOfStory = listMap.append("End of story");
-    
+
     assert(listMap.byEntry().equal([Entry("Shebang"), Entry("Start", "Slow"), Entry("Finish", "Bad"), Entry("End of story")]));
-    
+
     Node* mid = listMap.addAfter(listMap.getNode("Start"), "Mid");
     Node* average = listMap.addBefore(listMap.getNode("Finish"), "Average");
     assert(listMap.byEntry().equal([Entry("Shebang"), Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad"), Entry("End of story")]));
-    
+
     listMap.remove(shebang);
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad"), Entry("End of story")]));
-    
+
     listMap.remove(endOfStory);
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
-    
+
     listMap.moveToFront(listMap.getNode("Start"));
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
     listMap.moveToBack(listMap.getNode("Finish"));
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
-    
+
     listMap.moveBefore(listMap.getNode("Start"), listMap.getNode("Start"));
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
     listMap.moveAfter(listMap.getNode("Finish"), listMap.getNode("Finish"));
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Average"), Entry("Finish", "Bad")]));
-    
+
     listMap.insertAfter(mid, "Center", "Universe");
     listMap.insertBefore(average, "Focus", "Cosmos");
     assert(listMap.byEntry().equal([Entry("Start", "Slow"), Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average"), Entry("Finish", "Bad")]));
-    
+
     listMap.removeFront();
     assert(listMap.byEntry().equal([Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average"), Entry("Finish", "Bad")]));
     listMap.removeBack();
-    
+
     assert(listMap.byEntry().equal([Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average")]));
-    
+
     assert(listMap.byEntry().retro.equal([Entry("Average"), Entry("Focus", "Cosmos"), Entry("Center", "Universe"), Entry("Mid")]));
-    
+
     auto byEntry = listMap.byEntry();
     Entry entry = byEntry.front;
     assert(entry.value == "Mid");
     assert(!entry.hasKey());
-    
+
     byEntry.popFront();
     assert(byEntry.equal([Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average")]));
     byEntry.popBack();
     assert(byEntry.equal([Entry("Center", "Universe"), Entry("Focus", "Cosmos")]));
-    
+
     entry = byEntry.back;
     assert(entry.key == "Focus");
     assert(entry.value == "Cosmos");
     assert(entry.hasKey());
-    
+
     auto saved = byEntry.save;
-    
+
     byEntry.popFront();
     assert(byEntry.equal([Entry("Focus", "Cosmos")]));
     byEntry.popBack();
     assert(byEntry.empty);
-    
+
     assert(saved.equal([Entry("Center", "Universe"), Entry("Focus", "Cosmos")]));
     saved.popBack();
     assert(saved.equal([Entry("Center", "Universe")]));
     saved.popFront();
     assert(saved.empty);
-    
+
     static void checkConst(ref const TestListMap listMap)
     {
         assert(listMap.byEntry().equal([Entry("Mid"), Entry("Center", "Universe"), Entry("Focus", "Cosmos"), Entry("Average")]));
     }
     checkConst(listMap);
-    
+
     static class Class
     {
         this(string name) {
             _name = name;
         }
-        
+
         string name() const {
             return _name;
         }
     private:
         string _name;
     }
-    
+
     alias ListMap!(string, Class) TestClassListMap;
     TestClassListMap classListMap;
     classListMap.insertFront("name", new Class("Name"));
@@ -762,21 +762,21 @@ struct IniLikeLine
         Comment = 1, /// a comment or empty line
         KeyValue = 2 /// key-value pair
     }
-    
+
     /**
      * Contruct from comment.
      */
     @nogc @safe static IniLikeLine fromComment(string comment) nothrow pure {
         return IniLikeLine(comment, null, Type.Comment);
     }
-    
+
     /**
      * Construct from key and value.
      */
     @nogc @safe static IniLikeLine fromKeyValue(string key, string value) nothrow pure {
         return IniLikeLine(key, value, Type.KeyValue);
     }
-    
+
     /**
      * Get comment.
      * Returns: Comment or empty string if type is not Type.Comment.
@@ -784,7 +784,7 @@ struct IniLikeLine
     @nogc @safe string comment() const nothrow pure {
         return _type == Type.Comment ? _first : null;
     }
-    
+
     /**
      * Get key.
      * Returns: Key or empty string if type is not Type.KeyValue
@@ -792,7 +792,7 @@ struct IniLikeLine
     @nogc @safe string key() const nothrow pure {
         return _type == Type.KeyValue ? _first : null;
     }
-    
+
     /**
      * Get value.
      * Returns: Value or empty string if type is not Type.KeyValue
@@ -800,7 +800,7 @@ struct IniLikeLine
     @nogc @safe string value() const nothrow pure {
         return _type == Type.KeyValue ? _second : null;
     }
-    
+
     /**
      * Get type of line.
      */
@@ -815,7 +815,7 @@ private:
 
 
 /**
- * This class represents the group (section) in the ini-like file. 
+ * This class represents the group (section) in the ini-like file.
  * Instances of this class can be created only in the context of $(D IniLikeFile) or its derivatives.
  * Note: Keys are case-sensitive.
  */
@@ -823,7 +823,7 @@ class IniLikeGroup
 {
 private:
     alias ListMap!(string, IniLikeLine) LineListMap;
-    
+
 public:
     ///
     enum InvalidKeyPolicy : ubyte {
@@ -834,14 +834,14 @@ public:
         ///Save entry with invalid key.
         save
     }
-    
+
     /**
      * Create instance on IniLikeGroup and set its name to groupName.
      */
     protected @nogc @safe this(string groupName) nothrow {
         _name = groupName;
     }
-    
+
     /**
      * Returns: The value associated with the key.
      * Note: The value is not unescaped automatically.
@@ -851,8 +851,8 @@ public:
     @nogc @safe final string opIndex(string key) const nothrow pure {
         return _listMap.getNode(key).value.value;
     }
-    
-    private @safe final string setKeyValueImpl(string key, string value) 
+
+    private @safe final string setKeyValueImpl(string key, string value)
     in {
         assert(!value.needEscaping);
     }
@@ -866,7 +866,7 @@ public:
         }
         return value;
     }
-    
+
     /**
      * Insert new value or replaces the old one if value associated with key already exists.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
@@ -877,7 +877,7 @@ public:
     @safe final string opIndexAssign(string value, string key) {
         return setValue(key, value);
     }
-    
+
     /**
      * Assign localized value.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
@@ -886,14 +886,14 @@ public:
     @safe final string opIndexAssign(string value, string key, string locale) {
         return setLocalizedValue(key, locale, value);
     }
-    
+
     /**
      * Tell if group contains value associated with the key.
      */
     @nogc @safe final bool contains(string key) const nothrow pure {
         return _listMap.getNode(key) !is null;
     }
-    
+
     /**
      * Get value by key.
      * Returns: The value associated with the key, or defaultValue if group does not contain such item.
@@ -908,11 +908,11 @@ public:
             return null;
         }
     }
-    
+
     private @trusted final bool validateKeyValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy)
     {
         validateValue(key, value);
-        
+
         try {
             validateKey(key, value);
             return true;
@@ -929,7 +929,7 @@ public:
             }
         }
     }
-    
+
     /**
      * Set value associated with key.
      * Params:
@@ -945,7 +945,7 @@ public:
         }
         return null;
     }
-    
+
     /**
      * Get value by key. This function automatically unescape the found value before returning.
      * Returns: The unescaped value associated with key or null if not found.
@@ -958,7 +958,7 @@ public:
             return value(key).unescapeValue();
         }
     }
-    
+
     /**
      * Set value by key. This function automatically escape the value (you should not escape value yourself) when writing it.
      * Throws: $(D IniLikeEntryException) if key or value is not valid.
@@ -968,21 +968,21 @@ public:
         value = value.escapeValue();
         return setValue(key, value, invalidKeyPolicy);
     }
-    
+
     ///ditto, localized version
     @safe final string writeEntry(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         value = value.escapeValue();
         return setLocalizedValue(key, locale, value, invalidKeyPolicy);
     }
-    
+
     /**
      * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
      * Params:
      *  key = Non-localized key.
      *  locale = Locale in intereset.
      *  nonLocaleFallback = Allow fallback to non-localized version.
-     * Returns: 
-     *  The localized value associated with key and locale, 
+     * Returns:
+     *  The localized value associated with key and locale,
      *  or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
      * Note: The value is not unescaped automatically.
      * See_Also: $(D setLocalizedValue), $(D value), $(D readEntry)
@@ -993,7 +993,7 @@ public:
         auto lang = t.lang;
         auto country = t.country;
         auto modifier = t.modifier;
-        
+
         if (lang.length) {
             string pick;
             if (country.length && modifier.length) {
@@ -1019,21 +1019,21 @@ public:
                 return pick;
             }
         }
-        
+
         if (nonLocaleFallback) {
             return value(key);
         } else {
             return null;
         }
     }
-    
+
     ///
-    unittest 
+    unittest
     {
         auto lilf = new IniLikeFile;
         lilf.addGenericGroup("Entry");
         auto group = lilf.group("Entry");
-        assert(group.groupName == "Entry"); 
+        assert(group.groupName == "Entry");
         group["Name"] = "Programmer";
         group["Name[ru_RU]"] = "Разработчик";
         group["Name[ru@jargon]"] = "Кодер";
@@ -1054,7 +1054,7 @@ public:
         assert(group.localizedValue("GenericName", "fr_FR") == "Program");
         assert(group.localizedValue("GenericName", "fr_FR", No.nonLocaleFallback) is null);
     }
-    
+
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
      * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
@@ -1064,7 +1064,7 @@ public:
     @safe final string setLocalizedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         return setValue(localizedKey(key, locale), value, invalidKeyPolicy);
     }
-    
+
     /**
      * Removes entry by key. Do nothing if not value associated with key found.
      * Returns: true if entry was removed, false otherwise.
@@ -1072,21 +1072,21 @@ public:
     @safe final bool removeEntry(string key) nothrow pure {
         return _listMap.remove(key);
     }
-    
+
     ///ditto, but remove entry by localized key
     @safe final bool removeEntry(string key, string locale) nothrow pure {
         return removeEntry(localizedKey(key, locale));
     }
-    
+
     ///ditto, but remove entry by node.
     @safe final void removeEntry(LineNode node) nothrow pure {
         _listMap.remove(node.node);
     }
-    
+
     private @nogc @safe static auto staticByKeyValue(Range)(Range nodes) nothrow {
         return nodes.map!(node => node.value).filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => keyValueTuple(v.key, v.value));
     }
-    
+
     /**
      * Iterate by Key-Value pairs. Values are left in escaped form.
      * Returns: Range of Tuple!(string, "key", string, "value").
@@ -1095,7 +1095,7 @@ public:
     @nogc @safe final auto byKeyValue() const nothrow {
         return staticByKeyValue(_listMap.byNode);
     }
-    
+
     /**
      * Empty range of the same type as byKeyValue. Can be used in derived classes if it's needed to have empty range.
      * Returns: Empty range of Tuple!(string, "key", string, "value").
@@ -1112,7 +1112,7 @@ public:
         auto group = new IniLikeGroup("Group name");
         static assert(is(typeof(emptyByKeyValue()) == typeof(group.byKeyValue()) ));
     }
-    
+
     /**
      * Get name of this group.
      * Returns: The name of this group.
@@ -1120,7 +1120,7 @@ public:
     @nogc @safe final string groupName() const nothrow pure {
         return _name;
     }
-    
+
     /**
      * Returns: Range of $(D IniLikeLine)s included in this group.
      * See_Also: $(D byNode), $(D byKeyValue)
@@ -1128,7 +1128,7 @@ public:
     @trusted final auto byIniLine() const {
         return _listMap.byNode.map!(node => node.value);
     }
-    
+
     /**
      * Wrapper for internal ListMap node.
      */
@@ -1148,7 +1148,7 @@ public:
                 return null;
             }
         }
-        
+
         /**
          * Get $(D IniLikeLine) pointed by node.
          */
@@ -1159,7 +1159,7 @@ public:
                 return IniLikeLine.init;
             }
         }
-        
+
         /**
          * Set value for line. If underline line is comment, than newValue is set as comment.
          * Prerequisites: Node must be non-null.
@@ -1172,7 +1172,7 @@ public:
                 node.value = makeCommentLine(newValue);
             }
         }
-        
+
         /**
          * Check if underlined node is null.
          */
@@ -1180,11 +1180,11 @@ public:
             return node is null;
         }
     }
-    
+
     private @trusted auto lineNode(LineListMap.Node* node) pure nothrow {
         return LineNode(node, groupName());
     }
-    
+
     /**
      * Iterate over nodes of internal list.
      * See_Also: $(D getNode), $(D byIniLine)
@@ -1193,7 +1193,7 @@ public:
         import std.algorithm : map;
         return _listMap.byNode().map!(node => lineNode(node));
     }
-    
+
     /**
      * Get internal list node for key.
      * See_Also: $(D byNode)
@@ -1201,7 +1201,7 @@ public:
     @trusted final auto getNode(string key) {
         return lineNode(_listMap.getNode(key));
     }
-    
+
     /**
      * Add key-value entry without association of value with key. Can be used to add duplicates.
      */
@@ -1212,7 +1212,7 @@ public:
             return lineNode(null);
         }
     }
-    
+
     /**
      * Add comment line into the group.
      * Returns: Added LineNode.
@@ -1221,7 +1221,7 @@ public:
     @safe final auto appendComment(string comment) nothrow pure {
         return lineNode(_listMap.append(makeCommentLine(comment)));
     }
-    
+
     /**
      * Add comment line at the start of group (after group header, before any key-value pairs).
      * Returns: Added LineNode.
@@ -1230,7 +1230,7 @@ public:
     @safe final auto prependComment(string comment) nothrow pure {
         return lineNode(_listMap.prepend(makeCommentLine(comment)));
     }
-    
+
     /**
      * Add comment before some node.
      * Returns: Added LineNode.
@@ -1243,7 +1243,7 @@ public:
     body {
         return _listMap.addBefore(node.node, makeCommentLine(comment));
     }
-    
+
     /**
      * Add comment after some node.
      * Returns: Added LineNode.
@@ -1256,7 +1256,7 @@ public:
     body {
         return _listMap.addAfter(node.node, makeCommentLine(comment));
     }
-    
+
     /**
      * Move line to the start of group.
      * Prerequisites: $(D toMove) is not null and belongs to this group.
@@ -1265,7 +1265,7 @@ public:
     @trusted final void moveLineToFront(LineNode toMove) nothrow pure {
         _listMap.moveToFront(toMove.node);
     }
-    
+
     /**
      * Move line to the end of group.
      * Prerequisites: $(D toMove) is not null and belongs to this group.
@@ -1274,7 +1274,7 @@ public:
     @trusted final void moveLineToBack(LineNode toMove) nothrow pure {
         _listMap.moveToBack(toMove.node);
     }
-    
+
     /**
      * Move line before other line in the group.
      * Prerequisites: $(D toMove) and $(D other) are not null and belong to this group.
@@ -1283,7 +1283,7 @@ public:
     @trusted final void moveLineBefore(LineNode other, LineNode toMove) nothrow pure {
         _listMap.moveBefore(other.node, toMove.node);
     }
-    
+
     /**
      * Move line after other line in the group.
      * Prerequisites: $(D toMove) and $(D other) are not null and belong to this group.
@@ -1292,7 +1292,7 @@ public:
     @trusted final void moveLineAfter(LineNode other, LineNode toMove) nothrow pure {
         _listMap.moveAfter(other.node, toMove.node);
     }
-    
+
 private:
     @trusted static void validateKeyImpl(string key, string value, string groupName)
     {
@@ -1309,63 +1309,63 @@ private:
             throw new IniLikeEntryException("key must not contain new line characters", groupName, key, value);
         }
     }
-    
+
 protected:
     /**
      * Validate key before setting value to key for this group and throw exception if not valid.
-     * Can be reimplemented in derived classes. 
-     * 
+     * Can be reimplemented in derived classes.
+     *
      * Default implementation checks if key is not empty string, does not look like comment and does not contain new line or carriage return characters.
      * Params:
      *  key = key to validate.
      *  value = value that is being set to key.
      * Throws: $(D IniLikeEntryException) if either key is invalid.
      * See_Also: $(D validateValue)
-     * Note: 
+     * Note:
      *  Implementer should ensure that their implementation still validates key for format consistency (i.e. no new line characters, etc.).
      *  If not sure, just call super.validateKey(key, value) in your implementation.
      */
     @trusted void validateKey(string key, string value) const {
         validateKeyImpl(key, value, _name);
     }
-    
+
     ///
     unittest
     {
         auto ilf = new IniLikeFile();
         ilf.addGenericGroup("Group");
-        
+
         auto entryException = collectException!IniLikeEntryException(ilf.group("Group")[""] = "Value1");
         assert(entryException !is null);
         assert(entryException.groupName == "Group");
         assert(entryException.key == "");
         assert(entryException.value == "Value1");
-        
+
         entryException = collectException!IniLikeEntryException(ilf.group("Group")["    "] = "Value2");
         assert(entryException !is null);
         assert(entryException.key == "    ");
         assert(entryException.value == "Value2");
-        
+
         entryException = collectException!IniLikeEntryException(ilf.group("Group")["New\nLine"] = "Value3");
         assert(entryException !is null);
         assert(entryException.key == "New\nLine");
         assert(entryException.value == "Value3");
-        
+
         entryException = collectException!IniLikeEntryException(ilf.group("Group")["# Comment"] = "Value4");
         assert(entryException !is null);
         assert(entryException.key == "# Comment");
         assert(entryException.value == "Value4");
-        
+
         entryException = collectException!IniLikeEntryException(ilf.group("Group")["Everyone=Is"] = "Equal");
         assert(entryException !is null);
         assert(entryException.key == "Everyone=Is");
         assert(entryException.value == "Equal");
     }
-    
+
     /**
      * Validate value for key before setting value to key for this group and throw exception if not valid.
-     * Can be reimplemented in derived classes. 
-     * 
+     * Can be reimplemented in derived classes.
+     *
      * Default implementation checks if value is escaped.
      * Params:
      *  key = key the value is being set to.
@@ -1378,13 +1378,13 @@ protected:
             throw new IniLikeEntryException("The value needs to be escaped", _name, key, value);
         }
     }
-    
+
     ///
     unittest
     {
         auto ilf = new IniLikeFile();
         ilf.addGenericGroup("Group");
-        
+
         auto entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
         assert(entryException !is null);
         assert(entryException.key == "Key");
@@ -1414,14 +1414,14 @@ class IniLikeGroupException : Exception
         super(msg, file, line, next);
         _group = groupName;
     }
-    
+
     /**
      * Name of group where error occured.
      */
     @nogc @safe string groupName() const nothrow pure {
         return _group;
     }
-    
+
 private:
     string _group;
 }
@@ -1436,21 +1436,21 @@ class IniLikeEntryException : IniLikeGroupException
         _key = key;
         _value = value;
     }
-    
+
     /**
      * The key the value associated with.
      */
     @nogc @safe string key() const nothrow pure {
         return _key;
     }
-    
+
     /**
      * The value associated with key.
      */
     @nogc @safe string value() const nothrow pure {
         return _value;
     }
-    
+
 private:
     string _key;
     string _value;
@@ -1470,8 +1470,8 @@ class IniLikeReadException : IniLikeException
         _fileName = fileName;
         _entryException = entryException;
     }
-    
-    /** 
+
+    /**
      * Number of line in the file where the exception occured, starting from 1.
      * 0 means that error is not bound to any existing line, but instead relate to file at whole (e.g. required group or key is missing).
      * Don't confuse with $(B line) property of $(B Throwable).
@@ -1479,24 +1479,24 @@ class IniLikeReadException : IniLikeException
     @nogc @safe size_t lineNumber() const nothrow pure {
         return _lineNumber;
     }
-    
+
     /**
-     * Number of line in the file where the exception occured, starting from 0. 
+     * Number of line in the file where the exception occured, starting from 0.
      * Don't confuse with $(B line) property of $(B Throwable).
      */
     @nogc @safe size_t lineIndex() const nothrow pure {
         return _lineNumber ? _lineNumber - 1 : 0;
     }
-    
+
     /**
-     * Name of ini-like file where error occured. 
+     * Name of ini-like file where error occured.
      * Can be empty if fileName was not given upon IniLikeFile creating.
      * Don't confuse with $(B file) property of $(B Throwable).
      */
     @nogc @safe string fileName() const nothrow pure {
         return _fileName;
     }
-    
+
     /**
      * Original IniLikeEntryException which caused this error.
      * This will have the same msg.
@@ -1505,7 +1505,7 @@ class IniLikeReadException : IniLikeException
     @nogc @safe IniLikeEntryException entryException() nothrow pure {
         return _entryException;
     }
-    
+
 private:
     size_t _lineNumber;
     string _fileName;
@@ -1514,7 +1514,7 @@ private:
 
 /**
  * Ini-like file.
- * 
+ *
  */
 class IniLikeFile
 {
@@ -1531,7 +1531,7 @@ public:
         ///Preserve all duplicates in the list. The first found value remains accessible by key.
         preserve
     }
-    
+
     ///Behavior on group with duplicate name in the file.
     enum DuplicateGroupPolicy : ubyte
     {
@@ -1542,7 +1542,7 @@ public:
         ///Preserve all duplicates in the list. The first found group remains accessible by key.
         preserve
     }
-    
+
     ///Behavior of ini-like file reading.
     static struct ReadOptions
     {
@@ -1550,35 +1550,35 @@ public:
         DuplicateGroupPolicy duplicateGroupPolicy = DuplicateGroupPolicy.throwError;
         ///Behavior on duplicate keys.
         DuplicateKeyPolicy duplicateKeyPolicy = DuplicateKeyPolicy.throwError;
-        
+
         ///Behavior on invalid keys.
         IniLikeGroup.InvalidKeyPolicy invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.throwError;
-        
+
         ///Whether to preserve comments on reading.
         Flag!"preserveComments" preserveComments = Yes.preserveComments;
-        
+
         ///Setting parameters in any order, leaving not mentioned ones in default state.
         @nogc @safe this(Args...)(Args args) nothrow pure {
             foreach(arg; args) {
                 assign(arg);
             }
         }
-        
+
         ///
         unittest
         {
             ReadOptions readOptions;
-    
+
             readOptions = ReadOptions(No.preserveComments);
             assert(readOptions.duplicateGroupPolicy == DuplicateGroupPolicy.throwError);
             assert(readOptions.duplicateKeyPolicy == DuplicateKeyPolicy.throwError);
             assert(!readOptions.preserveComments);
-            
+
             readOptions = ReadOptions(DuplicateGroupPolicy.skip, DuplicateKeyPolicy.preserve);
             assert(readOptions.duplicateGroupPolicy == DuplicateGroupPolicy.skip);
             assert(readOptions.duplicateKeyPolicy == DuplicateKeyPolicy.preserve);
             assert(readOptions.preserveComments);
-            
+
             const duplicateGroupPolicy = DuplicateGroupPolicy.preserve;
             immutable duplicateKeyPolicy = DuplicateKeyPolicy.skip;
             const preserveComments = No.preserveComments;
@@ -1587,7 +1587,7 @@ public:
             assert(readOptions.duplicateKeyPolicy == DuplicateKeyPolicy.skip);
             assert(readOptions.invalidKeyPolicy == IniLikeGroup.InvalidKeyPolicy.skip);
         }
-        
+
         /**
          * Assign arg to the struct member of corresponding type.
          * Note:
@@ -1608,7 +1608,7 @@ public:
             }
         }
     }
-    
+
     ///
     unittest
     {
@@ -1625,19 +1625,19 @@ Name=Commander
         alias IniLikeFile.ReadOptions ReadOptions;
         alias IniLikeFile.DuplicateKeyPolicy DuplicateKeyPolicy;
         alias IniLikeFile.DuplicateGroupPolicy DuplicateGroupPolicy;
-        
+
         IniLikeFile ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(No.preserveComments));
         assert(!ilf.readOptions().preserveComments);
         assert(ilf.leadingComments().empty);
         assert(equal(
-            ilf.group("First Entry").byIniLine(), 
+            ilf.group("First Entry").byIniLine(),
             [IniLikeLine.fromKeyValue("GenericName", "File manager"), IniLikeLine.fromKeyValue("GenericName[ru]", "Файловый менеджер")]
         ));
         assert(equal(
-            ilf.group("Another Group").byIniLine(), 
+            ilf.group("Another Group").byIniLine(),
             [IniLikeLine.fromKeyValue("Name", "Commander")]
         ));
-        
+
         contents = `[Group]
 Duplicate=First
 Key=Value
@@ -1645,17 +1645,17 @@ Duplicate=Second`;
 
         ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateKeyPolicy.skip));
         assert(equal(
-            ilf.group("Group").byIniLine(), 
+            ilf.group("Group").byIniLine(),
             [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value")]
         ));
-        
+
         ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateKeyPolicy.preserve));
         assert(equal(
-            ilf.group("Group").byIniLine(), 
+            ilf.group("Group").byIniLine(),
             [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromKeyValue("Duplicate", "Second")]
         ));
         assert(ilf.group("Group").value("Duplicate") == "First");
-        
+
         contents = `[Duplicate]
 Key=First
 [Group]
@@ -1666,12 +1666,12 @@ Key=Second`;
         auto byGroup = ilf.byGroup();
         assert(byGroup.front["Key"] == "First");
         assert(byGroup.back["Key"] == "Second");
-        
+
         auto byNode = ilf.byNode();
         assert(byNode.front.group.groupName == "Duplicate");
         assert(byNode.front.key == "Duplicate");
         assert(byNode.back.key is null);
-        
+
         contents = `[Duplicate]
 Key=First
 [Group]
@@ -1683,7 +1683,7 @@ Key=Second`;
         assert(byGroup2.front["Key"] == "First");
         assert(byGroup2.back.groupName == "Group");
     }
-    
+
     /**
      * Behavior of ini-like file saving.
      * See_Also: $(D save)
@@ -1699,27 +1699,27 @@ Key=Second`;
          * New line is not written when it already exists before the next group.
          */
         Flag!"lineBetweenGroups" lineBetweenGroups = No.lineBetweenGroups;
-        
+
         /**
          * Pretty mode. Save comments, skip existing new lines, add line before the next group.
          */
         @nogc @safe static auto pretty() nothrow pure {
             return WriteOptions(Yes.preserveComments, No.preserveEmptyLines, Yes.lineBetweenGroups);
         }
-        
+
         /**
          * Exact mode. Save all comments and empty lines as is.
          */
         @nogc @safe static auto exact() nothrow pure {
             return WriteOptions(Yes.preserveComments, Yes.preserveEmptyLines, No.lineBetweenGroups);
         }
-        
+
         @nogc @safe this(Args...)(Args args) nothrow pure {
             foreach(arg; args) {
                 assign(arg);
             }
         }
-        
+
         /**
          * Assign arg to the struct member of corresponding type.
          * Note:
@@ -1738,9 +1738,9 @@ Key=Second`;
             }
         }
     }
-    
+
     /**
-     * Wrapper for internal ListMap node.
+     * Wrapper for internal $(D ListMap) node.
      */
     static struct GroupNode
     {
@@ -1758,7 +1758,7 @@ Key=Second`;
                 return null;
             }
         }
-        
+
         /**
          * Access underlined group.
          */
@@ -1769,7 +1769,7 @@ Key=Second`;
                 return null;
             }
         }
-        
+
         /**
          * Check if underlined node is null.
          */
@@ -1777,7 +1777,7 @@ Key=Second`;
             return node is null;
         }
     }
-    
+
 protected:
     /**
      * Insert group into $(D IniLikeFile) object and use its name as key.
@@ -1790,7 +1790,7 @@ protected:
     body {
         return GroupNode(_listMap.insertBack(group.groupName, group));
     }
-    
+
     /**
      * Append group to group list without associating group name with it. Can be used to add groups with duplicated names.
      * Prerequisites: group must be non-null. It also should not be held by some other $(D IniLikeFile) object.
@@ -1802,7 +1802,7 @@ protected:
     body {
         return GroupNode(_listMap.append(group));
     }
-    
+
     /**
      * Add comment before groups.
      * This function is called only in constructor and can be reimplemented in derived classes.
@@ -1814,7 +1814,7 @@ protected:
             appendLeadingComment(comment);
         }
     }
-    
+
     /**
      * Add comment for group.
      * This function is called only in constructor and can be reimplemented in derived classes.
@@ -1830,7 +1830,7 @@ protected:
             currentGroup.appendComment(comment);
         }
     }
-    
+
     /**
      * Add key/value pair for group.
      * This function is called only in constructor and can be reimplemented in derived classes.
@@ -1859,15 +1859,15 @@ protected:
             }
         }
     }
-    
+
     /**
-     * Create iniLikeGroup by groupName during file parsing.
-     * 
-     * This function can be reimplemented in derived classes, 
+     * Create $(D IniLikeGroup) by groupName during file parsing.
+     *
+     * This function can be reimplemented in derived classes,
      * e.g. to insert additional checks or create specific derived class depending on groupName.
-     * Returned value is later passed to $(D onCommentInGroup) and $(D onKeyValue) methods as currentGroup. 
+     * Returned value is later passed to $(D onCommentInGroup) and $(D onKeyValue) methods as currentGroup.
      * Reimplemented method also is allowed to return null.
-     * Default implementation just returns empty IniLikeGroup with name set to groupName.
+     * Default implementation just returns empty $(D IniLikeGroup) with name set to groupName.
      * Throws:
      *  $(D IniLikeGroupException) if group with such name already exists.
      *  $(D IniLikeException) if groupName is empty.
@@ -1896,14 +1896,14 @@ protected:
             return toInsert;
         }
     }
-    
+
     /**
      * Reimplement in derive class.
      */
     @trusted IniLikeGroup createGroupByName(string groupName) {
         return createEmptyGroup(groupName);
     }
-    
+
     /**
      * Can be used in derived classes to create instance of IniLikeGroup.
      * Throws: $(D IniLikeException) if groupName is empty.
@@ -1916,12 +1916,12 @@ protected:
     }
 public:
     /**
-     * Construct empty IniLikeFile, i.e. without any groups or values
+     * Construct empty $(D IniLikeFile), i.e. without any groups or values
      */
     @nogc @safe this() nothrow {
-        
+
     }
-    
+
     /**
      * Read from file.
      * Throws:
@@ -1931,7 +1931,7 @@ public:
     @trusted this(string fileName, ReadOptions readOptions = ReadOptions.init) {
         this(iniLikeFileReader(fileName), fileName, readOptions);
     }
-    
+
     /**
      * Read from range of $(D inilike.range.IniLikeReader).
      * Note: All exceptions thrown within constructor are turning into $(D IniLikeReadException).
@@ -1943,11 +1943,11 @@ public:
         _readOptions = readOptions;
         size_t lineNumber = 0;
         IniLikeGroup currentGroup;
-        
+
         version(DigitalMars) {
             static void foo(size_t ) {}
         }
-        
+
         try {
             foreach(line; reader.byLeadingLines)
             {
@@ -1958,30 +1958,30 @@ public:
                     throw new IniLikeException("Expected comment or empty line before any group");
                 }
             }
-            
+
             foreach(g; reader.byGroup)
             {
                 lineNumber++;
                 string groupName = g.groupName;
-                
+
                 version(DigitalMars) {
                     foo(lineNumber); //fix dmd codgen bug with -O
                 }
-                
+
                 currentGroup = onGroup(groupName);
-                
+
                 foreach(line; g.byEntry)
                 {
                     lineNumber++;
-                    
+
                     if (line.isComment || line.strip.empty) {
                         onCommentInGroup(line, currentGroup, groupName);
                     } else {
                         const t = parseKeyValue(line);
-                        
+
                         string key = t.key.stripRight;
                         string value = t.value.stripLeft;
-                        
+
                         if (key.length == 0 && value.length == 0) {
                             throw new IniLikeException("Expected comment, empty line or key value inside group");
                         } else {
@@ -1990,9 +1990,9 @@ public:
                     }
                 }
             }
-            
+
             _fileName = fileName;
-            
+
         }
         catch(IniLikeEntryException e) {
             throw new IniLikeReadException(e.msg, lineNumber, fileName, e, e.file, e.line, e.next);
@@ -2001,7 +2001,7 @@ public:
             throw new IniLikeReadException(e.msg, lineNumber, fileName, null, e.file, e.line, e.next);
         }
     }
-    
+
     /**
      * Get group by name.
      * Returns: $(D IniLikeGroup) instance associated with groupName or null if not found.
@@ -2014,18 +2014,18 @@ public:
         }
         return null;
     }
-    
+
     /**
      * Get $(D GroupNode) by groupName.
      */
     @nogc @safe final auto getNode(string groupName) nothrow pure {
         return GroupNode(_listMap.getNode(groupName));
     }
-    
+
     /**
      * Create new group using groupName.
-     * Returns: Newly created instance of IniLikeGroup.
-     * Throws: 
+     * Returns: Newly created instance of $(D IniLikeGroup).
+     * Throws:
      *  $(D IniLikeGroupException) if group with such name already exists.
      *  $(D IniLikeException) if groupName is empty.
      * See_Also: $(D removeGroup), $(D group)
@@ -2038,7 +2038,7 @@ public:
         insertGroup(toReturn);
         return toReturn;
     }
-    
+
     /**
      * Remove group by name. Do nothing if group with such name does not exist.
      * Returns: true if group was deleted, false otherwise.
@@ -2047,7 +2047,7 @@ public:
     @safe bool removeGroup(string groupName) nothrow {
         return _listMap.remove(groupName);
     }
-    
+
     /**
      * Range of groups in order how they were defined in file.
      * See_Also: $(D group)
@@ -2055,14 +2055,14 @@ public:
     @nogc @safe final auto byGroup() inout nothrow {
         return _listMap.byNode().map!(node => node.value);
     }
-    
+
     /**
      * Iterate over $(D GroupNode)s.
      */
     @nogc @safe final auto byNode() nothrow {
         return _listMap.byNode().map!(node => GroupNode(node));
     }
-    
+
     /**
      * Save object to the file using .ini-like format.
      * Throws: $(D ErrnoException) if the file could not be opened or an error writing to the file occured.
@@ -2070,18 +2070,18 @@ public:
      */
     @trusted final void saveToFile(string fileName, const WriteOptions options = WriteOptions.exact) const {
         import std.stdio : File;
-        
+
         auto f = File(fileName, "w");
         void dg(in string line) {
             f.writeln(line);
         }
         save(&dg, options);
     }
-    
+
     /**
      * Save object to string using .ini like format.
      * Returns: A string that represents the contents of file.
-     * Note: The resulting string differs from the contents that would be written to file via $(D saveToFile) 
+     * Note: The resulting string differs from the contents that would be written to file via $(D saveToFile)
      * in the way it does not add new line character at the end of the last line.
      * See_Also: $(D saveToFile), $(D save)
      */
@@ -2090,11 +2090,11 @@ public:
         save(a, options);
         return a.data.join("\n");
     }
-    
+
     ///
     unittest
     {
-        string contents = 
+        string contents =
 `
 # Leading comment
 [First group]
@@ -2109,8 +2109,8 @@ Key=Value`;
 
         auto ilf = new IniLikeFile(iniLikeStringReader(contents));
         assert(ilf.saveToString(WriteOptions.exact) == contents);
-        
-        assert(ilf.saveToString(WriteOptions.pretty) == 
+
+        assert(ilf.saveToString(WriteOptions.pretty) ==
 `# Leading comment
 [First group]
 # Comment inside
@@ -2121,16 +2121,16 @@ Key=Value
 
 [Third group]
 Key=Value`);
-        
-        assert(ilf.saveToString(WriteOptions(No.preserveComments, No.preserveEmptyLines)) == 
+
+        assert(ilf.saveToString(WriteOptions(No.preserveComments, No.preserveEmptyLines)) ==
 `[First group]
 Key=Value
 [Second group]
 Key=Value
 [Third group]
 Key=Value`);
-        
-        assert(ilf.saveToString(WriteOptions(No.preserveComments, No.preserveEmptyLines, Yes.lineBetweenGroups)) == 
+
+        assert(ilf.saveToString(WriteOptions(No.preserveComments, No.preserveEmptyLines, Yes.lineBetweenGroups)) ==
 `[First group]
 Key=Value
 
@@ -2140,9 +2140,9 @@ Key=Value
 [Third group]
 Key=Value`);
     }
-    
+
     /**
-     * Use Output range or delegate to retrieve strings line by line. 
+     * Use Output range or delegate to retrieve strings line by line.
      * Those strings can be written to the file or be showed in text area.
      * Note: Output strings don't have trailing newline character.
      * See_Also: $(D saveToFile), $(D saveToString)
@@ -2158,12 +2158,12 @@ Key=Value`);
         }
         bool firstGroup = true;
         bool lastWasEmpty = false;
-        
+
         foreach(group; byGroup()) {
             if (!firstGroup && !lastWasEmpty && options.lineBetweenGroups) {
                 put(sink, "");
             }
-            
+
             put(sink, "[" ~ group.groupName ~ "]");
             foreach(line; group.byIniLine()) {
                 lastWasEmpty = false;
@@ -2185,7 +2185,7 @@ Key=Value`);
             firstGroup = false;
         }
     }
-    
+
     /**
      * File path where the object was loaded from.
      * Returns: File name as was specified on the object creation.
@@ -2193,7 +2193,7 @@ Key=Value`);
     @nogc @safe final string fileName() nothrow const pure {
         return _fileName;
     }
-    
+
     /**
      * Leading comments.
      * Returns: Range of leading comments (before any group)
@@ -2202,7 +2202,7 @@ Key=Value`);
     @nogc @safe final auto leadingComments() const nothrow pure {
         return _leadingComments;
     }
-    
+
     ///
     unittest
     {
@@ -2218,10 +2218,10 @@ Key=Value`);
         ilf.clearLeadingComments();
         assert(ilf.leadingComments().empty);
     }
-    
+
     /**
      * Add leading comment. This will be appended to the list of leadingComments.
-     * Note: # will be prepended automatically if line is not empty and does not have # at the start. 
+     * Note: # will be prepended automatically if line is not empty and does not have # at the start.
      *  The last new line character will be removed if present. Others will be replaced with whitespaces.
      * Returns: Line that was added as comment.
      * See_Also: $(D leadingComments), $(D prependLeadingComment)
@@ -2231,7 +2231,7 @@ Key=Value`);
         _leadingComments ~= line;
         return line;
     }
-    
+
     /**
      * Prepend leading comment (e.g. for setting shebang line).
      * Returns: Line that was added as comment.
@@ -2242,7 +2242,7 @@ Key=Value`);
         _leadingComments = line ~ _leadingComments;
         return line;
     }
-    
+
     /**
      * Remove all coments met before groups.
      * See_Also: $(D leadingComments)
@@ -2250,35 +2250,35 @@ Key=Value`);
     @nogc final @safe void clearLeadingComments() nothrow {
         _leadingComments = null;
     }
-    
+
     /**
      * Move the group to make it the first.
      */
     @trusted final void moveGroupToFront(GroupNode toMove) nothrow pure {
         _listMap.moveToFront(toMove.node);
     }
-    
+
     /**
      * Move the group to make it the last.
      */
     @trusted final void moveGroupToBack(GroupNode toMove) nothrow pure {
         _listMap.moveToBack(toMove.node);
     }
-    
+
     /**
      * Move group before other.
      */
     @trusted final void moveGroupBefore(GroupNode other, GroupNode toMove) nothrow pure {
         _listMap.moveBefore(other.node, toMove.node);
     }
-    
+
     /**
      * Move group after other.
      */
     @trusted final void moveGroupAfter(GroupNode other, GroupNode toMove) nothrow pure {
         _listMap.moveAfter(other.node, toMove.node);
     }
-    
+
     @safe final ReadOptions readOptions() nothrow const pure {
         return _readOptions;
     }
@@ -2295,8 +2295,8 @@ unittest
     import std.file;
     import std.path;
     import std.stdio;
-    
-    string contents = 
+
+    string contents =
 `# The first comment
 [First Entry]
 # Comment
@@ -2321,7 +2321,7 @@ Comment=Manage files
     assert(ilf.getNode("NonExistent").key() is null);
     assert(ilf.getNode("NonExistent").group() is null);
     assert(ilf.saveToString(IniLikeFile.WriteOptions.exact) == contents);
-    
+
     string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
     try {
         assertNotThrown!IniLikeReadException(ilf.saveToFile(tempFile));
@@ -2331,17 +2331,17 @@ Comment=Manage files
         } else {
             assert(equal(fileContents.lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
         }
-        
-        IniLikeFile filf; 
+
+        IniLikeFile filf;
         assertNotThrown!IniLikeReadException(filf = new IniLikeFile(tempFile));
         assert(filf.fileName() == tempFile);
         remove(tempFile);
     } catch(Exception e) {
         //environmental error in unittests
     }
-    
+
     auto firstEntry = ilf.group("First Entry");
-    
+
     assert(!firstEntry.contains("NonExistent"));
     assert(firstEntry.contains("GenericName"));
     assert(firstEntry.contains("GenericName[ru]"));
@@ -2351,107 +2351,107 @@ Comment=Manage files
     assert(firstEntry.getNode("GenericName").key == "GenericName");
     assert(firstEntry.getNode("NonExistent").key is null);
     assert(firstEntry.getNode("NonExistent").line.type == IniLikeLine.Type.None);
-    
+
     assert(firstEntry.value("NeedUnescape") == `yes\\i\tneed`);
     assert(firstEntry.readEntry("NeedUnescape") == "yes\\i\tneed");
     assert(firstEntry.localizedValue("NeedUnescape", "ru") == `да\\я\tнуждаюсь`);
     assert(firstEntry.readEntry("NeedUnescape", "ru") == "да\\я\tнуждаюсь");
-    
+
     firstEntry.writeEntry("NeedEscape", "i\rneed\nescape");
     assert(firstEntry.value("NeedEscape") == `i\rneed\nescape`);
     firstEntry.writeEntry("NeedEscape", "ru", "мне\rнужно\nэкранирование");
     assert(firstEntry.localizedValue("NeedEscape", "ru") == `мне\rнужно\nэкранирование`);
-    
+
     firstEntry["GenericName"] = "Manager of files";
     assert(firstEntry["GenericName"] == "Manager of files");
     firstEntry["Authors"] = "Unknown";
     assert(firstEntry["Authors"] == "Unknown");
     firstEntry.getNode("Authors").setValue("Known");
     assert(firstEntry["Authors"] == "Known");
-    
+
     assert(firstEntry.localizedValue("GenericName", "ru") == "Файловый менеджер");
     firstEntry["GenericName", "ru"] = "Менеджер файлов";
     assert(firstEntry.localizedValue("GenericName", "ru") == "Менеджер файлов");
     firstEntry.setLocalizedValue("Authors", "ru", "Неизвестны");
     assert(firstEntry.localizedValue("Authors", "ru") == "Неизвестны");
-    
+
     firstEntry.removeEntry("GenericName");
     assert(!firstEntry.contains("GenericName"));
     firstEntry.removeEntry("GenericName", "ru");
     assert(!firstEntry.contains("GenericName[ru]"));
     firstEntry["GenericName"] = "File Manager";
     assert(firstEntry["GenericName"] == "File Manager");
-    
+
     assert(ilf.group("Another Group")["Name"] == "Commander");
     assert(equal(ilf.group("Another Group").byKeyValue(), [ keyValueTuple("Name", "Commander"), keyValueTuple("Comment", "Manage files") ]));
-    
+
     auto latestCommentNode = ilf.group("Another Group").appendComment("The lastest comment");
     assert(latestCommentNode.line.comment == "#The lastest comment");
     latestCommentNode.setValue("The latest comment");
     assert(latestCommentNode.line.comment == "#The latest comment");
     assert(ilf.group("Another Group").prependComment("The first comment").line.comment == "#The first comment");
-    
+
     assert(equal(
-        ilf.group("Another Group").byIniLine(), 
+        ilf.group("Another Group").byIniLine(),
         [IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment"), IniLikeLine.fromComment("#The latest comment")]
     ));
-    
+
     auto nameLineNode = ilf.group("Another Group").getNode("Name");
     assert(nameLineNode.line.value == "Commander");
     auto commentLineNode = ilf.group("Another Group").getNode("Comment");
     assert(commentLineNode.line.value == "Manage files");
-    
+
     ilf.group("Another Group").addCommentAfter(nameLineNode, "Middle comment");
     ilf.group("Another Group").addCommentBefore(commentLineNode, "Average comment");
-    
+
     assert(equal(
-        ilf.group("Another Group").byIniLine(), 
+        ilf.group("Another Group").byIniLine(),
         [
-            IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), 
-            IniLikeLine.fromComment("#Middle comment"), IniLikeLine.fromComment("#Average comment"), 
+            IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"),
+            IniLikeLine.fromComment("#Middle comment"), IniLikeLine.fromComment("#Average comment"),
             IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment"), IniLikeLine.fromComment("#The latest comment")
         ]
     ));
-    
+
     ilf.group("Another Group").removeEntry(latestCommentNode);
-    
+
     assert(equal(
-        ilf.group("Another Group").byIniLine(), 
+        ilf.group("Another Group").byIniLine(),
         [
-            IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"), 
-            IniLikeLine.fromComment("#Middle comment"), IniLikeLine.fromComment("#Average comment"), 
+            IniLikeLine.fromComment("#The first comment"), IniLikeLine.fromKeyValue("Name", "Commander"),
+            IniLikeLine.fromComment("#Middle comment"), IniLikeLine.fromComment("#Average comment"),
             IniLikeLine.fromKeyValue("Comment", "Manage files"), IniLikeLine.fromComment("# The last comment")
         ]
     ));
-    
+
     assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry", "Another Group"]));
-    
+
     assert(!ilf.removeGroup("NonExistent Group"));
-    
+
     assert(ilf.removeGroup("Another Group"));
     assert(!ilf.group("Another Group"));
     assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry"]));
-    
+
     ilf.addGenericGroup("Another Group");
     assert(ilf.group("Another Group"));
     assert(ilf.group("Another Group").byIniLine().empty);
     assert(ilf.group("Another Group").byKeyValue().empty);
-    
+
     assertThrown(ilf.addGenericGroup("Another Group"));
-    
+
     ilf.addGenericGroup("Other Group");
     assert(equal(ilf.byGroup().map!(g => g.groupName), ["First Entry", "Another Group", "Other Group"]));
-    
+
     assertThrown!IniLikeException(ilf.addGenericGroup(""));
-    
+
     import std.range : isForwardRange;
-    
+
     const IniLikeFile cilf = ilf;
     static assert(isForwardRange!(typeof(cilf.byGroup())));
     static assert(isForwardRange!(typeof(cilf.group("First Entry").byKeyValue())));
     static assert(isForwardRange!(typeof(cilf.group("First Entry").byIniLine())));
-    
-    contents = 
+
+    contents =
 `[Group]
 GenericName=File manager
 [Group]
@@ -2462,8 +2462,8 @@ GenericName=Commander`;
     assert(shouldThrow.lineNumber == 3);
     assert(shouldThrow.lineIndex == 2);
     assert(shouldThrow.fileName == "config.ini");
-    
-    contents = 
+
+    contents =
 `[Group]
 Key=Value1
 Key=Value2`;
@@ -2471,7 +2471,7 @@ Key=Value2`;
     shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Duplicate key should throw");
     assert(shouldThrow.lineNumber == 3);
-    
+
     contents =
 `[Group]
 Key=Value
@@ -2480,8 +2480,8 @@ Key=Value
     shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Empty key should throw");
     assert(shouldThrow.lineNumber == 3);
-    
-    contents = 
+
+    contents =
 `[Group]
 #Comment
 Valid=Key
@@ -2490,8 +2490,8 @@ NotKeyNotGroupNotComment`;
     shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid entry should throw");
     assert(shouldThrow.lineNumber == 4);
-    
-    contents = 
+
+    contents =
 `#Comment
 NotComment
 [Group]
@@ -2499,8 +2499,8 @@ Valid=Key`;
     shouldThrow = collectException!IniLikeReadException(new IniLikeFile(iniLikeStringReader(contents)));
     assert(shouldThrow !is null, "Invalid comment should throw");
     assert(shouldThrow.lineNumber == 2);
-    
-    
+
+
     contents = `# The leading comment
 [One]
 # Comment1
@@ -2519,34 +2519,34 @@ Key2=Value2
 Key3=Value3`;
 
     ilf = new IniLikeFile(iniLikeStringReader(contents));
-    
+
     ilf.moveGroupToFront(ilf.getNode("Two"));
     assert(ilf.byNode().map!(g => g.key).equal(["Two", "One", "Three"]));
-    
+
     ilf.moveGroupToBack(ilf.getNode("One"));
     assert(ilf.byNode().map!(g => g.key).equal(["Two", "Three", "One"]));
-    
+
     ilf.moveGroupBefore(ilf.getNode("Two"), ilf.getNode("Three"));
     assert(ilf.byGroup().map!(g => g.groupName).equal(["Three", "Two", "One"]));
-    
+
     ilf.moveGroupAfter(ilf.getNode("Three"), ilf.getNode("One"));
     assert(ilf.byGroup().map!(g => g.groupName).equal(["Three", "One", "Two"]));
-    
+
     auto groupOne = ilf.group("One");
     groupOne.moveLineToFront(groupOne.getNode("Key3"));
     groupOne.moveLineToBack(groupOne.getNode("Key1"));
-    
+
     assert(groupOne.byIniLine().equal([
-        IniLikeLine.fromKeyValue("Key3", "Value3"), IniLikeLine.fromComment("# Comment1"), 
+        IniLikeLine.fromKeyValue("Key3", "Value3"), IniLikeLine.fromComment("# Comment1"),
         IniLikeLine.fromKeyValue("Key2", "Value2"), IniLikeLine.fromKeyValue("Key1", "Value1")
     ]));
-    
+
     auto groupTwo = ilf.group("Two");
     groupTwo.moveLineBefore(groupTwo.getNode("Key1"), groupTwo.getNode("Key3"));
     groupTwo.moveLineAfter(groupTwo.getNode("Key2"), groupTwo.getNode("Key1"));
-    
+
     assert(groupTwo.byIniLine().equal([
-        IniLikeLine.fromKeyValue("Key3", "Value3"), IniLikeLine.fromKeyValue("Key2", "Value2"), 
+        IniLikeLine.fromKeyValue("Key3", "Value3"), IniLikeLine.fromKeyValue("Key2", "Value2"),
          IniLikeLine.fromKeyValue("Key1", "Value1"), IniLikeLine.fromComment("# Comment2")
     ]));
 }
