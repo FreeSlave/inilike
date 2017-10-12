@@ -2322,22 +2322,25 @@ Comment=Manage files
     assert(ilf.getNode("NonExistent").group() is null);
     assert(ilf.saveToString(IniLikeFile.WriteOptions.exact) == contents);
 
-    string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
-    try {
-        assertNotThrown!IniLikeReadException(ilf.saveToFile(tempFile));
-        auto fileContents = cast(string)std.file.read(tempFile);
-        static if( __VERSION__ < 2067 ) {
-            assert(equal(fileContents.splitLines, contents.splitLines), "Contents should be preserved as is");
-        } else {
-            assert(equal(fileContents.lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
-        }
+    version(inilikeFileTest)
+    {
+        string tempFile = buildPath(tempDir(), "inilike-unittest-tempfile");
+        try {
+            assertNotThrown!IniLikeReadException(ilf.saveToFile(tempFile));
+            auto fileContents = cast(string)std.file.read(tempFile);
+            static if( __VERSION__ < 2067 ) {
+                assert(equal(fileContents.splitLines, contents.splitLines), "Contents should be preserved as is");
+            } else {
+                assert(equal(fileContents.lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
+            }
 
-        IniLikeFile filf;
-        assertNotThrown!IniLikeReadException(filf = new IniLikeFile(tempFile));
-        assert(filf.fileName() == tempFile);
-        remove(tempFile);
-    } catch(Exception e) {
-        //environmental error in unittests
+            IniLikeFile filf;
+            assertNotThrown!IniLikeReadException(filf = new IniLikeFile(tempFile));
+            assert(filf.fileName() == tempFile);
+            remove(tempFile);
+        } catch(Exception e) {
+            //environmental error in unittests
+        }
     }
 
     auto firstEntry = ilf.group("First Entry");

@@ -6,8 +6,8 @@
     "authors": ["Roman Chistokhodov"],
     "dependencies": {
     },
-    
+    "versions" : ["inilikeFileTest"],
     "targetName" : "inilike",
-    "targetPath" : "lib", 
+    "targetPath" : "lib",
     "targetType" : "library"
 }
