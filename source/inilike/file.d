@@ -3,7 +3,7 @@
  * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015-2016
+ *  Roman Chistokhodov, 2015-2017
  * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also:
@@ -844,7 +844,7 @@ public:
 
     /**
      * Returns: The value associated with the key.
-     * Note: The value is not unescaped automatically.
+     * Note: The value is returned in escaped form.
      * Prerequisites: Value accessed by key must exist.
      * See_Also: $(D value), $(D readEntry)
      */
@@ -895,9 +895,8 @@ public:
     }
 
     /**
-     * Get value by key.
-     * Returns: The value associated with the key, or defaultValue if group does not contain such item.
-     * Note: The value is not unescaped automatically.
+     * Get value by key in escaped form.
+     * Returns: The escaped value associated with the key, or empty string if group does not contain such item.
      * See_Also: $(D setValue), $(D localizedValue), $(D readEntry)
      */
     @nogc @safe final string value(string key) const nothrow pure {
@@ -934,8 +933,9 @@ public:
      * Set value associated with key.
      * Params:
      *  key = Key to associate value with.
-     *  value = Value to set.
-     *  invalidKeyPolicy = Policyt about invalid keys.
+     *  value = Value to set. Must be in escaped form.
+     *  invalidKeyPolicy = Policy about invalid keys.
+     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
      * See_Also: $(D value), $(D setLocalizedValue), $(D writeEntry)
      */
     @safe final string setValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError)
@@ -948,19 +948,23 @@ public:
 
     /**
      * Get value by key. This function automatically unescape the found value before returning.
+     * Params:
+     *  key = Key of value.
+     *  locale = Optional locale to use in localized lookup if not empty.
+     *  nonLocaleFallback = Allow fallback to non-localized version.
      * Returns: The unescaped value associated with key or null if not found.
      * See_Also: $(D value), $(D writeEntry)
      */
-    @safe final string readEntry(string key, string locale = null) const nothrow pure {
+    @safe final string readEntry(string key, string locale = null, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
         if (locale.length) {
-            return localizedValue(key, locale).unescapeValue();
+            return localizedValue(key, locale, nonLocaleFallback).unescapeValue();
         } else {
             return value(key).unescapeValue();
         }
     }
 
     /**
-     * Set value by key. This function automatically escape the value (you should not escape value yourself) when writing it.
+     * Set value by key. This function automatically escape the value (you must not escape value yourself) when writing it.
      * Throws: $(D IniLikeEntryException) if key or value is not valid.
      * See_Also: $(D readEntry), $(D setValue)
      */
@@ -982,7 +986,7 @@ public:
      *  locale = Locale in intereset.
      *  nonLocaleFallback = Allow fallback to non-localized version.
      * Returns:
-     *  The localized value associated with key and locale,
+     *  The escaped localized value associated with key and locale,
      *  or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
      * Note: The value is not unescaped automatically.
      * See_Also: $(D setLocalizedValue), $(D value), $(D readEntry)
@@ -1066,7 +1070,7 @@ public:
     }
 
     /**
-     * Removes entry by key. Do nothing if not value associated with key found.
+     * Removes entry by key. Do nothing if no value associated with key found.
      * Returns: true if entry was removed, false otherwise.
      */
     @safe final bool removeEntry(string key) nothrow pure {
@@ -1097,7 +1101,7 @@ public:
     }
 
     /**
-     * Empty range of the same type as byKeyValue. Can be used in derived classes if it's needed to have empty range.
+     * Empty range of the same type as byKeyValue. Can be used in derived classes if it's needed to have an empty range.
      * Returns: Empty range of Tuple!(string, "key", string, "value").
      */
     @nogc @safe static auto emptyByKeyValue() nothrow {
@@ -1366,7 +1370,7 @@ protected:
      * Validate value for key before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes.
      *
-     * Default implementation checks if value is escaped.
+     * Default implementation checks if value is escaped. It does not check the key in any way.
      * Params:
      *  key = key the value is being set to.
      *  value = value to validate. Considered to be escaped.
@@ -1490,7 +1494,7 @@ class IniLikeReadException : IniLikeException
 
     /**
      * Name of ini-like file where error occured.
-     * Can be empty if fileName was not given upon IniLikeFile creating.
+     * Can be empty if fileName was not given upon $(D IniLikeFile) creating.
      * Don't confuse with $(B file) property of $(B Throwable).
      */
     @nogc @safe string fileName() const nothrow pure {
@@ -1498,7 +1502,7 @@ class IniLikeReadException : IniLikeException
     }
 
     /**
-     * Original IniLikeEntryException which caused this error.
+     * Original $(D IniLikeEntryException) which caused this error.
      * This will have the same msg.
      * Returns: $(D IniLikeEntryException) object or null if the cause of error was something else.
      */
@@ -1723,7 +1727,7 @@ Key=Second`;
         /**
          * Assign arg to the struct member of corresponding type.
          * Note:
-         *  It's compile-time error to assign parameter of type which is not part of WriteOptions.
+         *  It's compile-time error to assign parameter of type which is not part of $(D WriteOptions).
          */
         @nogc @safe void assign(T)(T arg) nothrow pure {
             alias Unqual!(T) ArgType;
@@ -1863,11 +1867,11 @@ protected:
     /**
      * Create $(D IniLikeGroup) by groupName during file parsing.
      *
-     * This function can be reimplemented in derived classes,
-     * e.g. to insert additional checks or create specific derived class depending on groupName.
+     * This function can be reimplemented in derived classes, e.g. to insert additional checks.
      * Returned value is later passed to $(D onCommentInGroup) and $(D onKeyValue) methods as currentGroup.
      * Reimplemented method also is allowed to return null.
-     * Default implementation just returns empty $(D IniLikeGroup) with name set to groupName.
+     * Default implementation just creates and returns empty $(D IniLikeGroup) with name set to groupName.
+     *  If group already exists and $(D DuplicateGroupPolicy) is skip, then null is returned.
      * Throws:
      *  $(D IniLikeGroupException) if group with such name already exists.
      *  $(D IniLikeException) if groupName is empty.
