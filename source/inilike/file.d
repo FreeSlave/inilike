@@ -17,6 +17,7 @@ private {
     import inilike.common;
 }
 
+import std.algorithm : map;
 public import inilike.range;
 
 private @trusted string makeComment(string line) pure nothrow
