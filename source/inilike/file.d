@@ -283,7 +283,6 @@ struct ListMap(K,V, size_t chunkSize = 32)
      * Iterate over nodes mapped to Entry elements (useful for testing).
      */
     auto byEntry() const {
-        import std.algorithm : map;
         return byNode().map!(node => node.toEntry());
     }
 
@@ -1194,7 +1193,6 @@ public:
      * See_Also: $(D getNode), $(D byIniLine)
      */
     @trusted auto byNode() {
-        import std.algorithm : map;
         return _listMap.byNode().map!(node => lineNode(node));
     }
 
