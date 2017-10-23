@@ -25,7 +25,7 @@ enum ActionOnGroup {
 /**
  * Read ini-like file entries via the set of callbacks.
  * Params:
- *  reader = $(D IniLikeReader) object as returned by $(D inilike.range.iniLikeReader) or similar function.
+ *  reader = $(D inilike.range.IniLikeReader) object as returned by $(D inilike.range.iniLikeRangeReader) or similar function.
  *  onLeadingComment = Delegate to call after leading comment (i.e. the one before any group) is read. The parameter is either comment of empty line.
  *  onGroup = Delegate to call after group header is read. The parameter is group name (without brackets). Must return $(D ActionOnGroup).
  *  onKeyValue = Delegate to call after key-value entry is read and parsed. Parameters are key, value and group name.
