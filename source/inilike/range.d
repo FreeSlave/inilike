@@ -17,6 +17,7 @@ import inilike.common;
 
 /**
  * Object for iterating through ini-like file entries.
+ * See_Also: $(D iniLikeRangeReader), $(D iniLikeFileReader), $(D iniLikeStringReader)
  */
 struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!Range) && is(ElementEncodingType!(ElementType!Range) : char))
 {

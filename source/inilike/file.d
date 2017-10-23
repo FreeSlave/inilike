@@ -19,6 +19,8 @@ private {
 
 import std.algorithm : map;
 public import inilike.range;
+public import inilike.exception;
+import inilike.read;
 
 private @trusted string makeComment(string line) pure nothrow
 {
@@ -999,7 +1001,7 @@ public:
      *  key = Key to associate value with.
      *  value = Value to set. Must be in escaped form.
      *  invalidKeyPolicy = Policy about invalid keys.
-     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
+     * Throws: $(D inilike.exception.IniLikeEntryException) if key or value is not valid or value needs to be escaped.
      * See_Also: $(D escapedValue), $(D setUnescapedValue)
      */
     @safe final string setEscapedValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError)
@@ -1014,7 +1016,7 @@ public:
 
     /**
      * Set value associated with key and locale.
-     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
+     * Throws: $(D inilike.exception.IniLikeEntryException) if key or value is not valid or value needs to be escaped.
      * See_Also: $(D escapedValue), $(D setUnescapedValue)
      */
     @safe final string setEscapedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
@@ -1042,7 +1044,7 @@ public:
 
     /**
      * Set value by key. The value is considered to be in the unescaped form.
-     * Throws: $(D IniLikeEntryException) if key or value is not valid.
+     * Throws: $(D inilike.exception.IniLikeEntryException) if key or value is not valid.
      * See_Also: $(D unescapedValue), $(D setEscapedValue)
      */
     @safe final string setUnescapedValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
@@ -1319,7 +1321,7 @@ protected:
      * Params:
      *  key = key to validate.
      *  value = value that is being set to key.
-     * Throws: $(D IniLikeEntryException) if either key is invalid.
+     * Throws: $(D inilike.exception.IniLikeEntryException) if either key is invalid.
      * See_Also: $(D validateValue)
      * Note:
      *  Implementer should ensure that their implementation still validates key for format consistency (i.e. no new line characters, etc.).
@@ -1371,7 +1373,7 @@ protected:
      * Params:
      *  key = key the value is being set to.
      *  value = value to validate. Considered to be escaped.
-     * Throws: $(D IniLikeEntryException) if value is invalid.
+     * Throws: $(D inilike.exception.IniLikeEntryException) if value is invalid.
      * See_Also: $(D validateKey)
      */
     @trusted void validateValue(string key, string value) const {
@@ -1394,123 +1396,6 @@ protected:
 private:
     LineListMap _listMap;
     string _name;
-}
-
-///Base class for ini-like format errors.
-class IniLikeException : Exception
-{
-    ///
-    this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
-        super(msg, file, line, next);
-    }
-}
-
-/**
- * Exception thrown on error related to the group.
- */
-class IniLikeGroupException : Exception
-{
-    ///
-    this(string msg, string groupName, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
-        super(msg, file, line, next);
-        _group = groupName;
-    }
-
-    /**
-     * Name of group where error occured.
-     */
-    @nogc @safe string groupName() const nothrow pure {
-        return _group;
-    }
-
-private:
-    string _group;
-}
-
-/**
- * Exception thrown when trying to set invalid key or value.
- */
-class IniLikeEntryException : IniLikeGroupException
-{
-    this(string msg, string group, string key, string value, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
-        super(msg, group, file, line, next);
-        _key = key;
-        _value = value;
-    }
-
-    /**
-     * The key the value associated with.
-     */
-    @nogc @safe string key() const nothrow pure {
-        return _key;
-    }
-
-    /**
-     * The value associated with key.
-     */
-    @nogc @safe string value() const nothrow pure {
-        return _value;
-    }
-
-private:
-    string _key;
-    string _value;
-}
-
-/**
- * Exception thrown on the ini-like file read error.
- */
-class IniLikeReadException : IniLikeException
-{
-    /**
-     * Create $(D IniLikeReadException) with msg, lineNumber and fileName.
-     */
-    this(string msg, size_t lineNumber, string fileName = null, IniLikeEntryException entryException = null, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
-        super(msg, file, line, next);
-        _lineNumber = lineNumber;
-        _fileName = fileName;
-        _entryException = entryException;
-    }
-
-    /**
-     * Number of line in the file where the exception occured, starting from 1.
-     * 0 means that error is not bound to any existing line, but instead relate to file at whole (e.g. required group or key is missing).
-     * Don't confuse with $(B line) property of $(B Throwable).
-     */
-    @nogc @safe size_t lineNumber() const nothrow pure {
-        return _lineNumber;
-    }
-
-    /**
-     * Number of line in the file where the exception occured, starting from 0.
-     * Don't confuse with $(B line) property of $(B Throwable).
-     */
-    @nogc @safe size_t lineIndex() const nothrow pure {
-        return _lineNumber ? _lineNumber - 1 : 0;
-    }
-
-    /**
-     * Name of ini-like file where error occured.
-     * Can be empty if fileName was not given upon $(D IniLikeFile) creating.
-     * Don't confuse with $(B file) property of $(B Throwable).
-     */
-    @nogc @safe string fileName() const nothrow pure {
-        return _fileName;
-    }
-
-    /**
-     * Original $(D IniLikeEntryException) which caused this error.
-     * This will have the same msg.
-     * Returns: $(D IniLikeEntryException) object or null if the cause of error was something else.
-     */
-    @nogc @safe IniLikeEntryException entryException() nothrow pure {
-        return _entryException;
-    }
-
-private:
-    size_t _lineNumber;
-    string _fileName;
-    IniLikeEntryException _entryException;
 }
 
 /**
@@ -1869,8 +1754,8 @@ protected:
      * Default implementation just creates and returns empty $(D IniLikeGroup) with name set to groupName.
      *  If group already exists and $(D DuplicateGroupPolicy) is skip, then null is returned.
      * Throws:
-     *  $(D IniLikeGroupException) if group with such name already exists.
-     *  $(D IniLikeException) if groupName is empty.
+     *  $(D inilike.exception.IniLikeGroupException) if group with such name already exists.
+     *  $(D inilike.exception.IniLikeException) if groupName is empty.
      * See_Also:
      *  $(D onKeyValue), $(D onCommentInGroup)
      */
@@ -1906,7 +1791,7 @@ protected:
 
     /**
      * Can be used in derived classes to create instance of IniLikeGroup.
-     * Throws: $(D IniLikeException) if groupName is empty.
+     * Throws: $(D inilike.exception.IniLikeException) if groupName is empty.
      */
     @safe static createEmptyGroup(string groupName) {
         if (groupName.length == 0) {
@@ -1926,7 +1811,7 @@ public:
      * Read from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
-     *  $(D IniLikeReadException) if error occured while reading the file.
+     *  $(D inilike.exception.IniLikeReadException) if error occured while reading the file.
      */
     @trusted this(string fileName, ReadOptions readOptions = ReadOptions.init) {
         this(iniLikeFileReader(fileName), fileName, readOptions);
@@ -1936,70 +1821,33 @@ public:
      * Read from range of $(D inilike.range.IniLikeReader).
      * Note: All exceptions thrown within constructor are turning into $(D IniLikeReadException).
      * Throws:
-     *  $(D IniLikeReadException) if error occured while parsing.
+     *  $(D inilike.exception.IniLikeReadException) if error occured while parsing.
      */
     this(IniLikeReader)(IniLikeReader reader, string fileName = null, ReadOptions readOptions = ReadOptions.init)
     {
         _readOptions = readOptions;
-        size_t lineNumber = 0;
         IniLikeGroup currentGroup;
 
         version(DigitalMars) {
             static void foo(size_t ) {}
         }
 
-        try {
-            foreach(line; reader.byLeadingLines)
-            {
-                lineNumber++;
-                if (line.isComment || line.strip.empty) {
-                    onLeadingComment(line);
-                } else {
-                    throw new IniLikeException("Expected comment or empty line before any group");
-                }
-            }
+        auto onMyLeadingComment = delegate void(string line) {
+            onLeadingComment(line);
+        };
+        auto onMyGroup = delegate ActionOnGroup(string groupName) {
+            currentGroup = onGroup(groupName);
+            return ActionOnGroup.proceed;
+        };
+        auto onMyKeyValue = delegate void(string key, string value, string groupName) {
+            onKeyValue(key, value, currentGroup, groupName);
+        };
+        auto onMyCommentInGroup = delegate void(string line, string groupName) {
+            onCommentInGroup(line, currentGroup, groupName);
+        };
 
-            foreach(g; reader.byGroup)
-            {
-                lineNumber++;
-                string groupName = g.groupName;
-
-                version(DigitalMars) {
-                    foo(lineNumber); //fix dmd codgen bug with -O
-                }
-
-                currentGroup = onGroup(groupName);
-
-                foreach(line; g.byEntry)
-                {
-                    lineNumber++;
-
-                    if (line.isComment || line.strip.empty) {
-                        onCommentInGroup(line, currentGroup, groupName);
-                    } else {
-                        const t = parseKeyValue(line);
-
-                        string key = t.key.stripRight;
-                        string value = t.value.stripLeft;
-
-                        if (key.length == 0 && value.length == 0) {
-                            throw new IniLikeException("Expected comment, empty line or key value inside group");
-                        } else {
-                            onKeyValue(key, value, currentGroup, groupName);
-                        }
-                    }
-                }
-            }
-
-            _fileName = fileName;
-
-        }
-        catch(IniLikeEntryException e) {
-            throw new IniLikeReadException(e.msg, lineNumber, fileName, e, e.file, e.line, e.next);
-        }
-        catch (Exception e) {
-            throw new IniLikeReadException(e.msg, lineNumber, fileName, null, e.file, e.line, e.next);
-        }
+        readIniLike(reader, onMyLeadingComment, onMyGroup, onMyKeyValue, onMyCommentInGroup, fileName);
+        _fileName = fileName;
     }
 
     /**
@@ -2026,8 +1874,8 @@ public:
      * Create new group using groupName.
      * Returns: Newly created instance of $(D IniLikeGroup).
      * Throws:
-     *  $(D IniLikeGroupException) if group with such name already exists.
-     *  $(D IniLikeException) if groupName is empty.
+     *  $(D inilike.exception.IniLikeGroupException) if group with such name already exists.
+     *  $(D inilike.exception.IniLikeException) if groupName is empty.
      * See_Also: $(D removeGroup), $(D group)
      */
     @safe final IniLikeGroup addGenericGroup(string groupName) {
