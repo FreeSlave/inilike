@@ -1,5 +1,6 @@
 /**
  * Reading and writing ini-like files used in some Unix systems and Freedesktop specifications.
+ *
  * ini-like is informal name for the file format that look like this:
  * ---
 # Comment
@@ -13,10 +14,21 @@ Key=English value
 Key[fr_FR]=Francais value
 
  * ---
+ * To work with ini-like files correctly it's essential to understand the difference between escaped values and unescaped ones.
+ * Escaping is needed to represent new line characters in values.
+ * ---
+NewLine="\n"
+Slash="\\"
+CarriageReturn="\r"
+ * ---
+ *
+ * In $(D inilike.file.IniLikeGroup) internally all values are stored in the escaped form.
+ * This is 'true' form of values as this is how they are stored in the file.
+ *
  * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015-2016
+ *  Roman Chistokhodov, 2015-2017
  * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also:
@@ -122,21 +134,21 @@ Key=Value
     assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromComment("# Comment in group")]));
     assert(equal(df.leadingComments(), ["# First comment"]));
 
-    assertThrown(df.desktopEntry().writeEntry("$Invalid", "Valid value"));
+    assertThrown(df.desktopEntry().setUnescapedValue("$Invalid", "Valid value"));
 
     IniLikeEntryException entryException;
     try {
-        df.desktopEntry().writeEntry("$Invalid", "Valid value");
+        df.desktopEntry().setUnescapedValue("$Invalid", "Valid value");
     } catch(IniLikeEntryException e) {
         entryException = e;
     }
     assert(entryException !is null);
-    df.desktopEntry().writeEntry("$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.save);
-    assert(df.desktopEntry().value("$Invalid") == "Valid value");
+    df.desktopEntry().setUnescapedValue("$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.save);
+    assert(df.desktopEntry().escapedValue("$Invalid") == "Valid value");
 
     assert(df.desktopEntry().appendValue("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip).isNull());
-    assert(df.desktopEntry().setValue("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip) is null);
-    assert(df.desktopEntry().value("Another$Invalid") is null);
+    assert(df.desktopEntry().setEscapedValue("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip) is null);
+    assert(df.desktopEntry().escapedValue("Another$Invalid") is null);
 
     contents =
 `[X-SomeGroup]

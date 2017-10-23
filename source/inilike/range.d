@@ -66,7 +66,7 @@ struct IniLikeReader(Range) if (isInputRange!Range && isSomeString!(ElementType!
         }
 
         /**
-         * Iterate over group entries - may be key-value pairs as well as comments or empty lines.
+         * Iterate over group entry lines - may be key-value pairs as well as comments or empty lines.
          */
         auto byEntry()
         {
@@ -129,10 +129,10 @@ private:
 }
 
 /**
- * Convenient function for creation of IniLikeReader instance.
+ * Convenient function for creation of $(D IniLikeReader) instance.
  * Params:
  *  range = input range of strings (strings must be without trailing new line characters)
- * Returns: IniLikeReader for given range.
+ * Returns: $(D IniLikeReader) for given range.
  * See_Also: $(D iniLikeFileReader), $(D iniLikeStringReader)
  */
 auto iniLikeRangeReader(Range)(Range range)
@@ -185,7 +185,7 @@ KeyValue6`;
 /**
  * Convenient function for reading ini-like contents from the file.
  * Throws: $(B ErrnoException) if file could not be opened.
- * Note: This function uses byLineCopy internally. Fallbacks to byLine on older compilers.
+ * Note: This function uses $(B byLineCopy) internally. Fallbacks to $(D byLine) with dup on older compilers.
  * See_Also: $(D iniLikeRangeReader), $(D iniLikeStringReader)
  */
 @trusted auto iniLikeFileReader(string fileName)
@@ -200,7 +200,7 @@ KeyValue6`;
 
 /**
  * Convenient function for reading ini-like contents from string.
- * Note: on frontends < 2.067 it uses splitLines thereby allocates strings.
+ * Note: on frontends < 2.067 it uses $(B splitLines) thereby allocates strings.
  * See_Also: $(D iniLikeRangeReader), $(D iniLikeFileReader)
  */
 @trusted auto iniLikeStringReader(String)(String contents) if (isSomeString!String && is(ElementEncodingType!String : char))

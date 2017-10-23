@@ -771,7 +771,7 @@ struct IniLikeLine
     }
 
     /**
-     * Construct from key and value.
+     * Construct from key and value. Value must be provided as it's written in a file, i.e in the escaped form.
      */
     @nogc @safe static IniLikeLine fromKeyValue(string key, string value) nothrow pure {
         return IniLikeLine(key, value, Type.KeyValue);
@@ -795,7 +795,7 @@ struct IniLikeLine
 
     /**
      * Get value.
-     * Returns: Value or empty string if type is not Type.KeyValue
+     * Returns: Value in the escaped form or empty string if type is not Type.KeyValue
      */
     @nogc @safe string value() const nothrow pure {
         return _type == Type.KeyValue ? _second : null;
@@ -815,8 +815,9 @@ private:
 
 
 /**
- * This class represents the group (section) in the ini-like file.
+ * This class represents the group (section) of key-value entries in the ini-like file.
  * Instances of this class can be created only in the context of $(D IniLikeFile) or its derivatives.
+ * Values are stored in the escaped form, but the interface allows to set and get values in both escaped and unescaped forms.
  * Note: Keys are case-sensitive.
  */
 class IniLikeGroup
@@ -836,19 +837,13 @@ public:
     }
 
     /**
-     * Create instance on IniLikeGroup and set its name to groupName.
+     * Create $(D IniLikeGroup) instance with given name.
      */
     protected @nogc @safe this(string groupName) nothrow {
         _name = groupName;
     }
 
-    /**
-     * Returns: The value associated with the key.
-     * Note: The value is returned in escaped form.
-     * Prerequisites: Value accessed by key must exist.
-     * See_Also: $(D value), $(D readEntry)
-     */
-    @nogc @safe final string opIndex(string key) const nothrow pure {
+    deprecated("use escapedValue") @nogc @safe final string opIndex(string key) const nothrow pure {
         return _listMap.getNode(key).value.value;
     }
 
@@ -867,28 +862,16 @@ public:
         return value;
     }
 
-    /**
-     * Insert new value or replaces the old one if value associated with key already exists.
-     * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
-     * Returns: Inserted/updated value or null string if key was not added.
-     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
-     * See_Also: $(D writeEntry)
-     */
-    @safe final string opIndexAssign(string value, string key) {
-        return setValue(key, value);
+    deprecated("use setEscapedValue") @safe final string opIndexAssign(string value, string key) {
+        return setEscapedValue(key, value);
+    }
+
+    deprecated("use setEscapedValue") @safe final string opIndexAssign(string value, string key, string locale) {
+        return setEscapedValue(key, locale, value);
     }
 
     /**
-     * Assign localized value.
-     * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
-     * See_Also: $(D setLocalizedValue), $(D localizedValue), $(D writeEntry)
-     */
-    @safe final string opIndexAssign(string value, string key, string locale) {
-        return setLocalizedValue(key, locale, value);
-    }
-
-    /**
-     * Tell if group contains value associated with the key.
+     * Check if the group contains a value associated with the key.
      */
     @nogc @safe final bool contains(string key) const nothrow pure {
         return _listMap.getNode(key) !is null;
@@ -897,9 +880,9 @@ public:
     /**
      * Get value by key in escaped form.
      * Returns: The escaped value associated with the key, or empty string if group does not contain such item.
-     * See_Also: $(D setValue), $(D localizedValue), $(D readEntry)
+     * See_Also: $(D setEscapedValue), $(D unescapedValue)
      */
-    @nogc @safe final string value(string key) const nothrow pure {
+    @nogc @safe final string escapedValue(string key) const nothrow pure {
         auto node = _listMap.getNode(key);
         if (node) {
             return node.value.value;
@@ -907,6 +890,87 @@ public:
             return null;
         }
     }
+
+    /**
+     * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
+     * Params:
+     *  key = Non-localized key.
+     *  locale = Locale in intereset.
+     *  nonLocaleFallback = Allow fallback to non-localized version.
+     * Returns:
+     *  The escaped localized value associated with key and locale,
+     *  or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
+     * See_Also: $(D setEscapedValue), $(D unescapedValue)
+     */
+    @safe final string escapedValue(string key, string locale, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
+        //Any ideas how to get rid of this boilerplate and make less allocations?
+        const t = parseLocaleName(locale);
+        auto lang = t.lang;
+        auto country = t.country;
+        auto modifier = t.modifier;
+
+        if (lang.length) {
+            string pick;
+            if (country.length && modifier.length) {
+                pick = escapedValue(localizedKey(key, locale));
+                if (pick !is null) {
+                    return pick;
+                }
+            }
+            if (country.length) {
+                pick = escapedValue(localizedKey(key, lang, country));
+                if (pick !is null) {
+                    return pick;
+                }
+            }
+            if (modifier.length) {
+                pick = escapedValue(localizedKey(key, lang, string.init, modifier));
+                if (pick !is null) {
+                    return pick;
+                }
+            }
+            pick = escapedValue(localizedKey(key, lang, string.init));
+            if (pick !is null) {
+                return pick;
+            }
+        }
+
+        if (nonLocaleFallback) {
+            return escapedValue(key);
+        } else {
+            return null;
+        }
+    }
+
+    ///
+    unittest
+    {
+        auto lilf = new IniLikeFile;
+        lilf.addGenericGroup("Entry");
+        auto group = lilf.group("Entry");
+        assert(group.groupName == "Entry");
+        group.setEscapedValue("Name", "Programmer");
+        group.setEscapedValue("Name[ru_RU]", "Разработчик");
+        group.setEscapedValue("Name[ru@jargon]", "Кодер");
+        group.setEscapedValue("Name[ru]", "Программист");
+        group.setEscapedValue("Name[de_DE@dialect]", "Programmierer"); //just example
+        group.setEscapedValue("Name[fr_FR]", "Programmeur");
+        group.setEscapedValue("GenericName", "Program");
+        group.setEscapedValue("GenericName[ru]", "Программа");
+        assert(group.escapedValue("Name") == "Programmer");
+        assert(group.escapedValue("Name", "ru@jargon") == "Кодер");
+        assert(group.escapedValue("Name", "ru_RU@jargon") == "Разработчик");
+        assert(group.escapedValue("Name", "ru") == "Программист");
+        assert(group.escapedValue("Name", "ru_RU.UTF-8") == "Разработчик");
+        assert(group.escapedValue("Name", "nonexistent locale") == "Programmer");
+        assert(group.escapedValue("Name", "de_DE@dialect") == "Programmierer");
+        assert(group.escapedValue("Name", "fr_FR.UTF-8") == "Programmeur");
+        assert(group.escapedValue("GenericName", "ru_RU") == "Программа");
+        assert(group.escapedValue("GenericName", "fr_FR") == "Program");
+        assert(group.escapedValue("GenericName", "fr_FR", No.nonLocaleFallback) is null);
+    }
+
+    deprecated("use escapedValue") alias escapedValue value;
 
     private @trusted final bool validateKeyValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy)
     {
@@ -936,9 +1000,9 @@ public:
      *  value = Value to set. Must be in escaped form.
      *  invalidKeyPolicy = Policy about invalid keys.
      * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
-     * See_Also: $(D value), $(D setLocalizedValue), $(D writeEntry)
+     * See_Also: $(D escapedValue), $(D setUnescapedValue)
      */
-    @safe final string setValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError)
+    @safe final string setEscapedValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError)
     {
         if (validateKeyValue(key, value, invalidKeyPolicy)) {
             return setKeyValueImpl(key, value);
@@ -946,127 +1010,60 @@ public:
         return null;
     }
 
+    deprecated("use setEscapedValue") alias setEscapedValue setValue;
+
     /**
-     * Get value by key. This function automatically unescape the found value before returning.
+     * Set value associated with key and locale.
+     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
+     * See_Also: $(D escapedValue), $(D setUnescapedValue)
+     */
+    @safe final string setEscapedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
+        return setEscapedValue(localizedKey(key, locale), value, invalidKeyPolicy);
+    }
+
+    /**
+     * Get value by key.
      * Params:
      *  key = Key of value.
      *  locale = Optional locale to use in localized lookup if not empty.
      *  nonLocaleFallback = Allow fallback to non-localized version.
      * Returns: The unescaped value associated with key or null if not found.
-     * See_Also: $(D value), $(D writeEntry)
+     * See_Also: $(D escapedValue), $(D setUnescapedValue)
      */
-    @safe final string readEntry(string key, string locale = null, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
+    @safe final string unescapedValue(string key, string locale = null, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
         if (locale.length) {
-            return localizedValue(key, locale, nonLocaleFallback).unescapeValue();
+            return escapedValue(key, locale, nonLocaleFallback).unescapeValue();
         } else {
-            return value(key).unescapeValue();
+            return escapedValue(key).unescapeValue();
         }
     }
 
+    deprecated("use unescapedValue") alias unescapedValue readEntry;
+
     /**
-     * Set value by key. This function automatically escape the value (you must not escape value yourself) when writing it.
+     * Set value by key. The value is considered to be in the unescaped form.
      * Throws: $(D IniLikeEntryException) if key or value is not valid.
-     * See_Also: $(D readEntry), $(D setValue)
+     * See_Also: $(D unescapedValue), $(D setEscapedValue)
      */
-    @safe final string writeEntry(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
+    @safe final string setUnescapedValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         value = value.escapeValue();
-        return setValue(key, value, invalidKeyPolicy);
+        return setEscapedValue(key, value, invalidKeyPolicy);
     }
 
     ///ditto, localized version
-    @safe final string writeEntry(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
+    @safe final string setUnescapedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         value = value.escapeValue();
-        return setLocalizedValue(key, locale, value, invalidKeyPolicy);
+        return setEscapedValue(key, locale, value, invalidKeyPolicy);
     }
 
-    /**
-     * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
-     * Params:
-     *  key = Non-localized key.
-     *  locale = Locale in intereset.
-     *  nonLocaleFallback = Allow fallback to non-localized version.
-     * Returns:
-     *  The escaped localized value associated with key and locale,
-     *  or the value associated with non-localized key if group does not contain localized value and nonLocaleFallback is true.
-     * Note: The value is not unescaped automatically.
-     * See_Also: $(D setLocalizedValue), $(D value), $(D readEntry)
-     */
-    @safe final string localizedValue(string key, string locale, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
-        //Any ideas how to get rid of this boilerplate and make less allocations?
-        const t = parseLocaleName(locale);
-        auto lang = t.lang;
-        auto country = t.country;
-        auto modifier = t.modifier;
+    deprecated("use setUnescapedValue") alias setUnescapedValue writeEntry;
 
-        if (lang.length) {
-            string pick;
-            if (country.length && modifier.length) {
-                pick = value(localizedKey(key, locale));
-                if (pick !is null) {
-                    return pick;
-                }
-            }
-            if (country.length) {
-                pick = value(localizedKey(key, lang, country));
-                if (pick !is null) {
-                    return pick;
-                }
-            }
-            if (modifier.length) {
-                pick = value(localizedKey(key, lang, string.init, modifier));
-                if (pick !is null) {
-                    return pick;
-                }
-            }
-            pick = value(localizedKey(key, lang, string.init));
-            if (pick !is null) {
-                return pick;
-            }
-        }
-
-        if (nonLocaleFallback) {
-            return value(key);
-        } else {
-            return null;
-        }
+    deprecated("use escapedValue") @safe final string localizedValue(string key, string locale, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
+        return escapedValue(key, locale, nonLocaleFallback);
     }
 
-    ///
-    unittest
-    {
-        auto lilf = new IniLikeFile;
-        lilf.addGenericGroup("Entry");
-        auto group = lilf.group("Entry");
-        assert(group.groupName == "Entry");
-        group["Name"] = "Programmer";
-        group["Name[ru_RU]"] = "Разработчик";
-        group["Name[ru@jargon]"] = "Кодер";
-        group["Name[ru]"] = "Программист";
-        group["Name[de_DE@dialect]"] = "Programmierer"; //just example
-        group["Name[fr_FR]"] = "Programmeur";
-        group["GenericName"] = "Program";
-        group["GenericName[ru]"] = "Программа";
-        assert(group["Name"] == "Programmer");
-        assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
-        assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
-        assert(group.localizedValue("Name", "ru") == "Программист");
-        assert(group.localizedValue("Name", "ru_RU.UTF-8") == "Разработчик");
-        assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
-        assert(group.localizedValue("Name", "de_DE@dialect") == "Programmierer");
-        assert(group.localizedValue("Name", "fr_FR.UTF-8") == "Programmeur");
-        assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
-        assert(group.localizedValue("GenericName", "fr_FR") == "Program");
-        assert(group.localizedValue("GenericName", "fr_FR", No.nonLocaleFallback) is null);
-    }
-
-    /**
-     * Same as localized version of opIndexAssign, but uses function syntax.
-     * Note: The value is not escaped automatically upon writing. It's your responsibility to escape it.
-     * Throws: $(D IniLikeEntryException) if key or value is not valid or value needs to be escaped.
-     * See_Also: $(D localizedValue), $(D setValue), $(D writeEntry)
-     */
-    @safe final string setLocalizedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
-        return setValue(localizedKey(key, locale), value, invalidKeyPolicy);
+    deprecated("use setEscapedValue") @safe final string setLocalizedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
+        return setEscapedValue(key, locale, value, invalidKeyPolicy);
     }
 
     /**
@@ -1077,7 +1074,7 @@ public:
         return _listMap.remove(key);
     }
 
-    ///ditto, but remove entry by localized key
+    ///ditto, but remove entry by localized key.
     @safe final bool removeEntry(string key, string locale) nothrow pure {
         return removeEntry(localizedKey(key, locale));
     }
@@ -1094,14 +1091,14 @@ public:
     /**
      * Iterate by Key-Value pairs. Values are left in escaped form.
      * Returns: Range of Tuple!(string, "key", string, "value").
-     * See_Also: $(D value), $(D localizedValue), $(D byIniLine)
+     * See_Also: $(D escapedValue), $(D localizedValue), $(D byIniLine)
      */
     @nogc @safe final auto byKeyValue() const nothrow {
         return staticByKeyValue(_listMap.byNode);
     }
 
     /**
-     * Empty range of the same type as byKeyValue. Can be used in derived classes if it's needed to have an empty range.
+     * Empty range of the same type as $(D byKeyValue). Can be used in derived classes if it's needed to have an empty range.
      * Returns: Empty range of Tuple!(string, "key", string, "value").
      */
     @nogc @safe static auto emptyByKeyValue() nothrow {
@@ -1168,7 +1165,7 @@ public:
          * Set value for line. If underline line is comment, than newValue is set as comment.
          * Prerequisites: Node must be non-null.
          */
-        @trusted void setValue(string newValue) pure {
+        @trusted void setEscapedValue(string newValue) pure {
             auto type = node.value.type;
             if (type == IniLikeLine.Type.KeyValue) {
                 node.value = IniLikeLine.fromKeyValue(node.value.key, newValue);
@@ -1206,7 +1203,7 @@ public:
     }
 
     /**
-     * Add key-value entry without association of value with key. Can be used to add duplicates.
+     * Add key-value entry without diret association of the value with the key. Can be used to add duplicates.
      */
     final auto appendValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         if (validateKeyValue(key, value, invalidKeyPolicy)) {
@@ -1218,7 +1215,7 @@ public:
 
     /**
      * Add comment line into the group.
-     * Returns: Added LineNode.
+     * Returns: Added $(D LineNode).
      * See_Also: $(D byIniLine), $(D prependComment), $(D addCommentBefore), $(D addCommentAfter)
      */
     @safe final auto appendComment(string comment) nothrow pure {
@@ -1227,7 +1224,7 @@ public:
 
     /**
      * Add comment line at the start of group (after group header, before any key-value pairs).
-     * Returns: Added LineNode.
+     * Returns: Added $(D LineNode).
      * See_Also: $(D byIniLine), $(D appendComment), $(D addCommentBefore), $(D addCommentAfter)
      */
     @safe final auto prependComment(string comment) nothrow pure {
@@ -1236,7 +1233,7 @@ public:
 
     /**
      * Add comment before some node.
-     * Returns: Added LineNode.
+     * Returns: Added $(D LineNode).
      * See_Also: $(D byIniLine), $(D appendComment), $(D prependComment), $(D getNode), $(D addCommentAfter)
      */
     @trusted final auto addCommentBefore(LineNode node, string comment) nothrow pure
@@ -1249,7 +1246,7 @@ public:
 
     /**
      * Add comment after some node.
-     * Returns: Added LineNode.
+     * Returns: Added $(D LineNode).
      * See_Also: $(D byIniLine), $(D appendComment), $(D prependComment), $(D getNode), $(D addCommentBefore)
      */
     @trusted final auto addCommentAfter(LineNode node, string comment) nothrow pure
@@ -1338,28 +1335,28 @@ protected:
         auto ilf = new IniLikeFile();
         ilf.addGenericGroup("Group");
 
-        auto entryException = collectException!IniLikeEntryException(ilf.group("Group")[""] = "Value1");
+        auto entryException = collectException!IniLikeEntryException(ilf.group("Group").setEscapedValue("", "Value1"));
         assert(entryException !is null);
         assert(entryException.groupName == "Group");
         assert(entryException.key == "");
         assert(entryException.value == "Value1");
 
-        entryException = collectException!IniLikeEntryException(ilf.group("Group")["    "] = "Value2");
+        entryException = collectException!IniLikeEntryException(ilf.group("Group").setEscapedValue("    ", "Value2"));
         assert(entryException !is null);
         assert(entryException.key == "    ");
         assert(entryException.value == "Value2");
 
-        entryException = collectException!IniLikeEntryException(ilf.group("Group")["New\nLine"] = "Value3");
+        entryException = collectException!IniLikeEntryException(ilf.group("Group").setEscapedValue("New\nLine", "Value3"));
         assert(entryException !is null);
         assert(entryException.key == "New\nLine");
         assert(entryException.value == "Value3");
 
-        entryException = collectException!IniLikeEntryException(ilf.group("Group")["# Comment"] = "Value4");
+        entryException = collectException!IniLikeEntryException(ilf.group("Group").setEscapedValue("# Comment", "Value4"));
         assert(entryException !is null);
         assert(entryException.key == "# Comment");
         assert(entryException.value == "Value4");
 
-        entryException = collectException!IniLikeEntryException(ilf.group("Group")["Everyone=Is"] = "Equal");
+        entryException = collectException!IniLikeEntryException(ilf.group("Group").setEscapedValue("Everyone=Is", "Equal"));
         assert(entryException !is null);
         assert(entryException.key == "Everyone=Is");
         assert(entryException.value == "Equal");
@@ -1368,6 +1365,7 @@ protected:
     /**
      * Validate value for key before setting value to key for this group and throw exception if not valid.
      * Can be reimplemented in derived classes.
+     * The key is provided because you may want to implement specific checks depending on the key name.
      *
      * Default implementation checks if value is escaped. It does not check the key in any way.
      * Params:
@@ -1388,7 +1386,7 @@ protected:
         auto ilf = new IniLikeFile();
         ilf.addGenericGroup("Group");
 
-        auto entryException = collectException!IniLikeEntryException(ilf.group("Group")["Key"] = "New\nline");
+        auto entryException = collectException!IniLikeEntryException(ilf.group("Group").setEscapedValue("Key", "New\nline"));
         assert(entryException !is null);
         assert(entryException.key == "Key");
         assert(entryException.value == "New\nline");
@@ -1408,7 +1406,7 @@ class IniLikeException : Exception
 }
 
 /**
- * Exception thrown on error with group.
+ * Exception thrown on error related to the group.
  */
 class IniLikeGroupException : Exception
 {
@@ -1460,12 +1458,12 @@ private:
 }
 
 /**
- * Exception thrown on the file read error.
+ * Exception thrown on the ini-like file read error.
  */
 class IniLikeReadException : IniLikeException
 {
     /**
-     * Create IniLikeReadException with msg, lineNumber and fileName.
+     * Create $(D IniLikeReadException) with msg, lineNumber and fileName.
      */
     this(string msg, size_t lineNumber, string fileName = null, IniLikeEntryException entryException = null, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
         super(msg, file, line, next);
@@ -1517,7 +1515,6 @@ private:
 
 /**
  * Ini-like file.
- *
  */
 class IniLikeFile
 {
@@ -1657,7 +1654,7 @@ Duplicate=Second`;
             ilf.group("Group").byIniLine(),
             [IniLikeLine.fromKeyValue("Duplicate", "First"), IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromKeyValue("Duplicate", "Second")]
         ));
-        assert(ilf.group("Group").value("Duplicate") == "First");
+        assert(ilf.group("Group").escapedValue("Duplicate") == "First");
 
         contents = `[Duplicate]
 Key=First
@@ -1667,8 +1664,8 @@ Key=Second`;
 
         ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateGroupPolicy.preserve));
         auto byGroup = ilf.byGroup();
-        assert(byGroup.front["Key"] == "First");
-        assert(byGroup.back["Key"] == "Second");
+        assert(byGroup.front.escapedValue("Key") == "First");
+        assert(byGroup.back.escapedValue("Key") == "Second");
 
         auto byNode = ilf.byNode();
         assert(byNode.front.group.groupName == "Duplicate");
@@ -1683,7 +1680,7 @@ Key=Second`;
 
         ilf = new IniLikeFile(iniLikeStringReader(contents), null, ReadOptions(DuplicateGroupPolicy.skip));
         auto byGroup2 = ilf.byGroup();
-        assert(byGroup2.front["Key"] == "First");
+        assert(byGroup2.front.escapedValue("Key") == "First");
         assert(byGroup2.back.groupName == "Group");
     }
 
@@ -1858,7 +1855,7 @@ protected:
                         break;
                 }
             } else {
-                currentGroup.setValue(key, value, _readOptions.invalidKeyPolicy);
+                currentGroup.setEscapedValue(key, value, _readOptions.invalidKeyPolicy);
             }
         }
     }
@@ -2285,6 +2282,46 @@ Key=Value`);
     @safe final ReadOptions readOptions() nothrow const pure {
         return _readOptions;
     }
+
+    /**
+     * Shortcut to $(D IniLikeGroup.escapedValue) of given group.
+     * Returns null if the group does not exist.
+     */
+    @nogc @safe final string escapedValue(string groupName, string key)
+    {
+        auto g = group(groupName);
+        if (g) {
+            return g.escapedValue(key);
+        } else {
+            return null;
+        }
+    }
+
+    /// ditto, localized version
+    @safe final string escapedValue(string groupName, string key, string locale, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback)
+    {
+        auto g = group(groupName);
+        if (g) {
+            return g.escapedValue(key, locale, nonLocaleFallback);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Shortcut to $(D IniLikeGroup.unescapedValue) of given group.
+     * Returns null if the group does not exist.
+     */
+    @safe final string unescapedValue(string groupName, string key, string locale = null, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback)
+    {
+        auto g = group(groupName);
+        if (g) {
+            return g.unescapedValue(key, locale, nonLocaleFallback);
+        } else {
+            return null;
+        }
+    }
+
 private:
     string _fileName;
     GroupListMap _listMap;
@@ -2346,54 +2383,64 @@ Comment=Manage files
         }
     }
 
+    assert(ilf.escapedValue("NonExistent", "Key") is null);
+    assert(ilf.escapedValue("NonExistent", "Key", "ru") is null);
+    assert(ilf.unescapedValue("NonExistent", "Key") is null);
+
     auto firstEntry = ilf.group("First Entry");
 
     assert(!firstEntry.contains("NonExistent"));
     assert(firstEntry.contains("GenericName"));
     assert(firstEntry.contains("GenericName[ru]"));
     assert(firstEntry.byNode().filter!(node => node.isNull()).empty);
-    assert(firstEntry["GenericName"] == "File manager");
-    assert(firstEntry.value("GenericName") == "File manager");
+    assert(firstEntry.escapedValue("GenericName") == "File manager");
     assert(firstEntry.getNode("GenericName").key == "GenericName");
     assert(firstEntry.getNode("NonExistent").key is null);
     assert(firstEntry.getNode("NonExistent").line.type == IniLikeLine.Type.None);
 
-    assert(firstEntry.value("NeedUnescape") == `yes\\i\tneed`);
-    assert(firstEntry.readEntry("NeedUnescape") == "yes\\i\tneed");
-    assert(firstEntry.localizedValue("NeedUnescape", "ru") == `да\\я\tнуждаюсь`);
-    assert(firstEntry.readEntry("NeedUnescape", "ru") == "да\\я\tнуждаюсь");
+    assert(firstEntry.escapedValue("NeedUnescape") == `yes\\i\tneed`);
+    assert(ilf.escapedValue("First Entry", "NeedUnescape") == `yes\\i\tneed`);
 
-    firstEntry.writeEntry("NeedEscape", "i\rneed\nescape");
-    assert(firstEntry.value("NeedEscape") == `i\rneed\nescape`);
-    firstEntry.writeEntry("NeedEscape", "ru", "мне\rнужно\nэкранирование");
-    assert(firstEntry.localizedValue("NeedEscape", "ru") == `мне\rнужно\nэкранирование`);
+    assert(firstEntry.unescapedValue("NeedUnescape") == "yes\\i\tneed");
+    assert(ilf.unescapedValue("First Entry", "NeedUnescape") == "yes\\i\tneed");
 
-    firstEntry["GenericName"] = "Manager of files";
-    assert(firstEntry["GenericName"] == "Manager of files");
-    firstEntry["Authors"] = "Unknown";
-    assert(firstEntry["Authors"] == "Unknown");
-    firstEntry.getNode("Authors").setValue("Known");
-    assert(firstEntry["Authors"] == "Known");
+    assert(firstEntry.escapedValue("NeedUnescape", "ru") == `да\\я\tнуждаюсь`);
+    assert(ilf.escapedValue("First Entry", "NeedUnescape", "ru") == `да\\я\tнуждаюсь`);
 
-    assert(firstEntry.localizedValue("GenericName", "ru") == "Файловый менеджер");
-    firstEntry["GenericName", "ru"] = "Менеджер файлов";
-    assert(firstEntry.localizedValue("GenericName", "ru") == "Менеджер файлов");
-    firstEntry.setLocalizedValue("Authors", "ru", "Неизвестны");
-    assert(firstEntry.localizedValue("Authors", "ru") == "Неизвестны");
+    assert(firstEntry.unescapedValue("NeedUnescape", "ru") == "да\\я\tнуждаюсь");
+    assert(ilf.unescapedValue("First Entry", "NeedUnescape", "ru") == "да\\я\tнуждаюсь");
+
+    firstEntry.setUnescapedValue("NeedEscape", "i\rneed\nescape");
+    assert(firstEntry.escapedValue("NeedEscape") == `i\rneed\nescape`);
+    firstEntry.setUnescapedValue("NeedEscape", "ru", "мне\rнужно\nэкранирование");
+    assert(firstEntry.escapedValue("NeedEscape", "ru") == `мне\rнужно\nэкранирование`);
+
+    firstEntry.setEscapedValue("GenericName", "Manager of files");
+    assert(firstEntry.escapedValue("GenericName") == "Manager of files");
+    firstEntry.setEscapedValue("Authors", "Unknown");
+    assert(firstEntry.escapedValue("Authors") == "Unknown");
+    firstEntry.getNode("Authors").setEscapedValue("Known");
+    assert(firstEntry.escapedValue("Authors") == "Known");
+
+    assert(firstEntry.escapedValue("GenericName", "ru") == "Файловый менеджер");
+    firstEntry.setEscapedValue("GenericName", "ru", "Менеджер файлов");
+    assert(firstEntry.escapedValue("GenericName", "ru") == "Менеджер файлов");
+    firstEntry.setEscapedValue("Authors", "ru", "Неизвестны");
+    assert(firstEntry.escapedValue("Authors", "ru") == "Неизвестны");
 
     firstEntry.removeEntry("GenericName");
     assert(!firstEntry.contains("GenericName"));
     firstEntry.removeEntry("GenericName", "ru");
     assert(!firstEntry.contains("GenericName[ru]"));
-    firstEntry["GenericName"] = "File Manager";
-    assert(firstEntry["GenericName"] == "File Manager");
+    firstEntry.setEscapedValue("GenericName", "File Manager");
+    assert(firstEntry.escapedValue("GenericName") == "File Manager");
 
-    assert(ilf.group("Another Group")["Name"] == "Commander");
+    assert(ilf.group("Another Group").escapedValue("Name") == "Commander");
     assert(equal(ilf.group("Another Group").byKeyValue(), [ keyValueTuple("Name", "Commander"), keyValueTuple("Comment", "Manage files") ]));
 
     auto latestCommentNode = ilf.group("Another Group").appendComment("The lastest comment");
     assert(latestCommentNode.line.comment == "#The lastest comment");
-    latestCommentNode.setValue("The latest comment");
+    latestCommentNode.setEscapedValue("The latest comment");
     assert(latestCommentNode.line.comment == "#The latest comment");
     assert(ilf.group("Another Group").prependComment("The first comment").line.comment == "#The first comment");
 
