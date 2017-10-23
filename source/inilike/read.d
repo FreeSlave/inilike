@@ -108,3 +108,41 @@ void readIniLike(IniLikeReader)(IniLikeReader reader, scope void delegate(string
         throw new IniLikeReadException(e.msg, lineNumber, fileName, null, e.file, e.line, e.next);
     }
 }
+
+///
+unittest
+{
+    string contents =
+`# Comment
+[ToSkip]
+KeyInSkippedGroup=Value
+[ToProceed]
+KeyInNormalGroup=Value2
+# Comment2
+[ToStopAfter]
+KeyInStopAfterGroup=Value3
+# Comment3
+[NeverGetThere]
+KeyNeverGetThere=Value4
+# Comment4`;
+    auto onLeadingComment = delegate void(string line) {
+        assert(line == "# Comment");
+    };
+    auto onGroup = delegate ActionOnGroup(string groupName) {
+        if (groupName == "ToSkip") {
+            return ActionOnGroup.skip;
+        } else if (groupName == "ToProceed") {
+            return ActionOnGroup.proceed;
+        } else if (groupName == "ToStopAfter") {
+            return ActionOnGroup.stopAfter;
+        } else assert(false);
+    };
+    auto onKeyValue = delegate void(string key, string value, string groupName) {
+        assert((groupName == "ToProceed" && key == "KeyInNormalGroup" && value == "Value2") ||
+            (groupName == "ToStopAfter" && key == "KeyInStopAfterGroup" && value == "Value3"));
+    };
+    auto onCommentInGroup = delegate void(string line, string groupName) {
+        assert((groupName == "ToProceed" && line == "# Comment2") || (groupName == "ToStopAfter" && line == "# Comment3"));
+    };
+    readIniLike(iniLikeStringReader(contents), onLeadingComment, onGroup, onKeyValue, onCommentInGroup);
+}
