@@ -192,11 +192,7 @@ KeyValue6`;
 @trusted auto iniLikeFileReader(string fileName)
 {
     import std.stdio : File;
-    static if( __VERSION__ < 2067 ) {
-        return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
-    } else {
-        return iniLikeRangeReader(File(fileName, "r").byLineCopy());
-    }
+    return iniLikeRangeReader(File(fileName, "r").byLineCopy());
 }
 
 /**
@@ -206,9 +202,5 @@ KeyValue6`;
  */
 @trusted auto iniLikeStringReader(String)(String contents) if (isSomeString!String && is(ElementEncodingType!String : char))
 {
-    static if( __VERSION__ < 2067 ) {
-        return iniLikeRangeReader(contents.splitLines());
-    } else {
-        return iniLikeRangeReader(contents.lineSplitter());
-    }
+    return iniLikeRangeReader(contents.lineSplitter());
 }

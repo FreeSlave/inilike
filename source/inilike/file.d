@@ -2216,11 +2216,7 @@ Comment=Manage files
         try {
             assertNotThrown!IniLikeReadException(ilf.saveToFile(tempFile));
             auto fileContents = cast(string)std.file.read(tempFile);
-            static if( __VERSION__ < 2067 ) {
-                assert(equal(fileContents.splitLines, contents.splitLines), "Contents should be preserved as is");
-            } else {
-                assert(equal(fileContents.lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
-            }
+            assert(equal(fileContents.lineSplitter, contents.lineSplitter), "Contents should be preserved as is");
 
             IniLikeFile filf;
             assertNotThrown!IniLikeReadException(filf = new IniLikeFile(tempFile));

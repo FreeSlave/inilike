@@ -20,8 +20,6 @@ package {
     import std.typecons;
     import std.conv : to;
 
-    static if( __VERSION__ < 2066 ) enum nogc = 1;
-
     auto keyValueTuple(String)(String key, String value)
     {
         alias KeyValueTuple = Tuple!(String, "key", String, "value");
