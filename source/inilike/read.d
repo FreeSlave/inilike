@@ -23,19 +23,19 @@ enum ActionOnGroup {
 }
 
 /**
- * Read ini-like file entries via the set of callbacks.
+ * Read ini-like file entries via the set of callbacks. Callbacks can be null, but basic format validation is still run in this case.
  * Params:
  *  reader = $(D inilike.range.IniLikeReader) object as returned by $(D inilike.range.iniLikeRangeReader) or similar function.
  *  onLeadingComment = Delegate to call after leading comment (i.e. the one before any group) is read. The parameter is either comment of empty line.
- *  onGroup = Delegate to call after group header is read. The parameter is group name (without brackets). Must return $(D ActionOnGroup).
- *  onKeyValue = Delegate to call after key-value entry is read and parsed. Parameters are key, value and group name.
- *  onCommentInGroup = Delegate to call after comment or empty line is read inside group section. The parameter is either comment of empty line.
+ *  onGroup = Delegate to call after group header is read. The parameter is group name (without brackets). Must return $(D ActionOnGroup). Providing the null callback is equal to providing the callback that always returns $(D ActionOnGroup.skip).
+ *  onKeyValue = Delegate to call after key-value entry is read and parsed. Parameters are key, value and the current group name. It's recommended to throw $(D inilike.exceptions.IniLikeEntryException) from this function in case if the key-value pair is invalid.
+ *  onCommentInGroup = Delegate to call after comment or empty line is read inside group section. The first parameter is either comment or empty line. The second parameter is the current group name.
  *  fileName = Optional file name parameter to use in thrown exceptions.
  * Throws:
  *  $(D inilike.exception.IniLikeReadException) if error occured while parsing. Any exception thrown by callbacks will be transformed to $(D inilike.exception.IniLikeReadException).
  */
-void readIniLike(IniLikeReader)(IniLikeReader reader, scope void delegate(string) onLeadingComment, scope ActionOnGroup delegate(string) onGroup,
-        scope void delegate(string, string, string) onKeyValue, scope void delegate(string, string) onCommentInGroup, string fileName = null
+void readIniLike(IniLikeReader)(IniLikeReader reader, scope void delegate(string) onLeadingComment = null, scope ActionOnGroup delegate(string) onGroup = null,
+        scope void delegate(string, string, string) onKeyValue = null, scope void delegate(string, string) onCommentInGroup = null, string fileName = null
 ) {
     size_t lineNumber = 0;
 
@@ -48,7 +48,8 @@ void readIniLike(IniLikeReader)(IniLikeReader reader, scope void delegate(string
         {
             lineNumber++;
             if (line.isComment || line.strip.empty) {
-                onLeadingComment(line);
+                if (onLeadingComment !is null)
+                    onLeadingComment(line);
             } else {
                 throw new IniLikeException("Expected comment or empty line before any group");
             }
@@ -63,7 +64,7 @@ void readIniLike(IniLikeReader)(IniLikeReader reader, scope void delegate(string
                 foo(lineNumber); //fix dmd codgen bug with -O
             }
 
-            auto actionOnGroup = onGroup(groupName);
+            auto actionOnGroup = onGroup is null ? ActionOnGroup.skip : onGroup(groupName);
             final switch(actionOnGroup)
             {
                 case ActionOnGroup.stopAfter:
@@ -74,7 +75,8 @@ void readIniLike(IniLikeReader)(IniLikeReader reader, scope void delegate(string
                         lineNumber++;
 
                         if (line.isComment || line.strip.empty) {
-                            onCommentInGroup(line, groupName);
+                            if (onCommentInGroup !is null)
+                                onCommentInGroup(line, groupName);
                         } else {
                             const t = parseKeyValue(line);
 
@@ -84,7 +86,8 @@ void readIniLike(IniLikeReader)(IniLikeReader reader, scope void delegate(string
                             if (key.length == 0 && value.length == 0) {
                                 throw new IniLikeException("Expected comment, empty line or key value inside group");
                             } else {
-                                onKeyValue(key, value, groupName);
+                                if (onKeyValue !is null)
+                                    onKeyValue(key, value, groupName);
                             }
                         }
                     }
@@ -145,4 +148,12 @@ KeyNeverGetThere=Value4
         assert((groupName == "ToProceed" && line == "# Comment2") || (groupName == "ToStopAfter" && line == "# Comment3"));
     };
     readIniLike(iniLikeStringReader(contents), onLeadingComment, onGroup, onKeyValue, onCommentInGroup);
+    readIniLike(iniLikeStringReader(contents));
+
+    import std.exception : assertThrown;
+    contents =
+`Not a comment
+[Group name]
+Key=Value`;
+    assertThrown!IniLikeReadException(readIniLike(iniLikeStringReader(contents)));
 }

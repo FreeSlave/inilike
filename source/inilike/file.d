@@ -1828,10 +1828,6 @@ public:
         _readOptions = readOptions;
         IniLikeGroup currentGroup;
 
-        version(DigitalMars) {
-            static void foo(size_t ) {}
-        }
-
         auto onMyLeadingComment = delegate void(string line) {
             onLeadingComment(line);
         };
