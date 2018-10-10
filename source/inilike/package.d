@@ -3,6 +3,7 @@
  *
  * ini-like is informal name for the file format that look like this:
  * ---
+`
 # Comment
 [Group name]
 Key=Value
@@ -12,6 +13,7 @@ AnotherKey=Value
 [Another group]
 Key=English value
 Key[fr_FR]=Francais value
+`
 
  * ---
  * To work with ini-like files correctly it's essential to understand the difference between escaped values and unescaped ones.
@@ -22,8 +24,8 @@ Slash="\\"
 CarriageReturn="\r"
  * ---
  *
- * In $(D inilike.file.IniLikeGroup) internally all values are stored in the escaped form.
- * This is 'true' form of values as this is how they are stored in the file.
+ * In $(D inilike.file.IniLikeGroup) internally all values are stored in the escaped form
+ * (the same way as they are stored in the file).
  *
  * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
