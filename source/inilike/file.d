@@ -41,7 +41,7 @@ private @trusted IniLikeLine makeCommentLine(string line) pure nothrow
 
 /**
  * Container used internally by $(D IniLikeFile) and $(D IniLikeGroup).
- * Technically this is list with optional value access by key.
+ * Technically this is a list with optional value access by key.
  */
 struct ListMap(K,V, size_t chunkSize = 32)
 {
@@ -894,7 +894,7 @@ public:
     }
 
     /**
-     * Perform locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
+     * Perform locale matching lookup as described in $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html, Localized values for keys).
      * Params:
      *  key = Non-localized key.
      *  locale = Locale in intereset.

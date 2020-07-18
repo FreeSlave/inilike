@@ -186,7 +186,6 @@ KeyValue6`;
 /**
  * Convenient function for reading ini-like contents from the file.
  * Throws: $(B ErrnoException) if file could not be opened.
- * Note: This function uses $(B byLineCopy) internally. Fallbacks to $(D byLine) with dup on older compilers.
  * See_Also: $(D iniLikeRangeReader), $(D iniLikeStringReader)
  */
 @trusted auto iniLikeFileReader(string fileName)
@@ -197,7 +196,6 @@ KeyValue6`;
 
 /**
  * Convenient function for reading ini-like contents from string.
- * Note: on frontends < 2.067 it uses $(B splitLines) thereby allocates strings.
  * See_Also: $(D iniLikeRangeReader), $(D iniLikeFileReader)
  */
 @trusted auto iniLikeStringReader(String)(String contents) if (isSomeString!String && is(ElementEncodingType!String : char))

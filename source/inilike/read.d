@@ -18,7 +18,7 @@ import inilike.common;
 /// What to do when encounter some group name in onGroup callback of $(D readIniLike).
 enum ActionOnGroup {
     skip, /// Skip this group entries, don't do any processing.
-    proceed, /// Process the grouo entries as usual.
+    proceed, /// Process the group entries as usual.
     stopAfter, /// Stop after processing this group (don't parse next groups)
 }
 

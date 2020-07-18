@@ -58,7 +58,7 @@ private @nogc @safe auto simpleStripRight(inout(char)[] s) pure nothrow
 
 
 /**
- * Test whether the string s represents a comment.
+ * Test whether the string represents a comment.
  */
 @nogc @safe bool isComment(const(char)[] s) pure nothrow
 {
@@ -76,8 +76,8 @@ unittest
 }
 
 /**
- * Test whether the string s represents a group header.
- * Note: "[]" is not considered as valid group header.
+ * Test whether the string represents a group header.
+ * Note: "[]" is not considered to be a valid group header.
  */
 @nogc @safe bool isGroupHeader(const(char)[] s) pure nothrow
 {
@@ -188,7 +188,7 @@ unittest
 * Not actually used in $(D inilike.file.IniLikeFile), but can be used in derivatives.
 * Only the characters A-Za-z0-9- may be used in key names.
 * Note: this function automatically separate key from locale. Locale is validated against isValidKey.
-* See_Also: $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s02.html, Basic format of the file), $(D isValidKey)
+* See_Also: $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s03.html, Basic format of the file), $(D isValidKey)
 */
 @nogc @safe bool isValidDesktopFileKey(in char[] desktopKey) pure nothrow {
     auto t = separateFromLocale(desktopKey);
@@ -435,7 +435,7 @@ unittest
 }
 
 /**
- * Choose the better localized value matching to locale between two localized values. The "goodness" is determined using algorithm described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
+ * Choose the better localized value matching to locale between two localized values. The "goodness" is determined using algorithm described in $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html, Localized values for keys).
  * Params:
  *  locale = original locale to match to
  *  firstLocale = first locale
