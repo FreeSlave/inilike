@@ -35,7 +35,7 @@ The localized value is the value associated with the localized key. Localized ke
 
 where **locale** is the [POSIX locale](http://en.wikipedia.org/wiki/Locale) with the charset part dropped.
 
-Inilike library has support for lookup of localized values, using the algorithm described in [Desktop Entry Specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html).
+Inilike library has support for lookup of localized values, using the algorithm described in [Desktop Entry Specification](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html).
 
 ## Subclassing IniLikeFile
 

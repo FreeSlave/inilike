@@ -3,25 +3,22 @@
  *
  * ini-like is informal name for the file format that look like this:
  * ---
-`
-# Comment
-[Group name]
-Key=Value
-# Comment inside group
-AnotherKey=Value
-
-[Another group]
-Key=English value
-Key[fr_FR]=Francais value
-`
-
+ * # Comment
+ * [Group name]
+ * Key=Value
+ * # Comment inside group
+ * AnotherKey=Value
+ *
+ * [Another group]
+ * Key=English value
+ * Key[fr_FR]=Francais value
  * ---
  * To work with ini-like files correctly it's essential to understand the difference between escaped values and unescaped ones.
  * Escaping is needed to represent new line characters in values.
  * ---
-NewLine="\n"
-Slash="\\"
-CarriageReturn="\r"
+ * NewLine=\n
+ * Slash=\\
+ * CarriageReturn=\r
  * ---
  *
  * In $(D inilike.file.IniLikeGroup) internally all values are stored in the escaped form
