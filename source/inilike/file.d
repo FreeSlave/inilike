@@ -846,10 +846,6 @@ public:
         _name = groupName;
     }
 
-    deprecated("use escapedValue") @nogc @safe final string opIndex(string key) const nothrow pure {
-        return _listMap.getNode(key).value.value;
-    }
-
     private @safe final string setKeyValueImpl(string key, string value)
     in {
         assert(!value.needEscaping);
@@ -863,14 +859,6 @@ public:
             _listMap.insertBack(key, IniLikeLine.fromKeyValue(key, value));
         }
         return value;
-    }
-
-    deprecated("use setEscapedValue") @safe final string opIndexAssign(string value, string key) {
-        return setEscapedValue(key, value);
-    }
-
-    deprecated("use setEscapedValue") @safe final string opIndexAssign(string value, string key, string locale) {
-        return setEscapedValue(key, locale, value);
     }
 
     /**
@@ -973,8 +961,6 @@ public:
         assert(group.escapedValue("GenericName", "fr_FR", No.nonLocaleFallback) is null);
     }
 
-    deprecated("use escapedValue") alias escapedValue value;
-
     private @trusted final bool validateKeyValue(string key, string value, InvalidKeyPolicy invalidKeyPolicy)
     {
         validateValue(key, value);
@@ -1013,8 +999,6 @@ public:
         return null;
     }
 
-    deprecated("use setEscapedValue") alias setEscapedValue setValue;
-
     /**
      * Set value associated with key and locale.
      * Throws: $(D inilike.exception.IniLikeEntryException) if key or value is not valid or value needs to be escaped.
@@ -1041,8 +1025,6 @@ public:
         }
     }
 
-    deprecated("use unescapedValue") alias unescapedValue readEntry;
-
     /**
      * Set value by key. The value is considered to be in the unescaped form.
      * Throws: $(D inilike.exception.IniLikeEntryException) if key or value is not valid.
@@ -1056,16 +1038,6 @@ public:
     ///ditto, localized version
     @safe final string setUnescapedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         value = value.escapeValue();
-        return setEscapedValue(key, locale, value, invalidKeyPolicy);
-    }
-
-    deprecated("use setUnescapedValue") alias setUnescapedValue writeEntry;
-
-    deprecated("use escapedValue") @safe final string localizedValue(string key, string locale, Flag!"nonLocaleFallback" nonLocaleFallback = Yes.nonLocaleFallback) const nothrow pure {
-        return escapedValue(key, locale, nonLocaleFallback);
-    }
-
-    deprecated("use setEscapedValue") @safe final string setLocalizedValue(string key, string locale, string value, InvalidKeyPolicy invalidKeyPolicy = InvalidKeyPolicy.throwError) {
         return setEscapedValue(key, locale, value, invalidKeyPolicy);
     }
 
@@ -1094,7 +1066,7 @@ public:
     /**
      * Iterate by Key-Value pairs. Values are left in escaped form.
      * Returns: Range of Tuple!(string, "key", string, "value").
-     * See_Also: $(D escapedValue), $(D localizedValue), $(D byIniLine)
+     * See_Also: $(D escapedValue), $(D byIniLine)
      */
     @nogc @safe final auto byKeyValue() const nothrow {
         return staticByKeyValue(_listMap.byNode);
