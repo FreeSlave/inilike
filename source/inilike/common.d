@@ -435,70 +435,132 @@ unittest
 }
 
 /**
- * Choose the better localized value matching to locale between two localized values. The "goodness" is determined using algorithm described in $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html, Localized values for keys).
+ * Between two key locales (i.e. locales found in keys of .ini-like file) select a better match for the provided locale. The "goodness" is determined using algorithm described in $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html, Localized values for keys).
  * Params:
  *  locale = original locale to match to
- *  firstLocale = first locale
- *  firstValue = first value
- *  secondLocale = second locale
- *  secondValue = second value
- * Returns: The best alternative among two or empty string if none of alternatives match original locale.
- * Note: value with empty locale is considered better choice than value with locale that does not match the original one.
+ *  firstKeyLocale = first key locale, can be empty
+ *  secondKeyLocale = second key locale, can be empty
+ * Returns: a locale which is considered a better alternative or an empty string if none of alternatives match the provided locale.
+ * Note: Empty locale is considered a better choice than a locale that does not match the original one.
+ * See_Also: $(D separateFromLocale), $(D selectLocalizedValue)
  */
-@nogc @trusted auto chooseLocalizedValue(String)(
-    String locale,
-    String firstLocale,  String firstValue,
-    String secondLocale, String secondValue) pure nothrow
-    if (isSomeString!String && is(ElementEncodingType!String : char))
+@nogc @trusted auto selectKeyLocale(String)(scope String locale, scope return String firstKeyLocale, scope return String secondKeyLocale)
+if (isSomeString!String && is(ElementEncodingType!String : char))
 {
     const lt = parseLocaleName(locale);
-    const lt1 = parseLocaleName(firstLocale);
-    const lt2 = parseLocaleName(secondLocale);
+    const lt1 = parseLocaleName(firstKeyLocale);
+    const lt2 = parseLocaleName(secondKeyLocale);
 
-    int score1, score2;
+    enum MaxScore = 4;
 
-    if (lt.lang == lt1.lang) {
-        score1 = 1 + ((lt.country == lt1.country) ? 2 : 0 ) + ((lt.modifier == lt1.modifier) ? 1 : 0);
-    }
-    if (lt.lang == lt2.lang) {
-        score2 = 1 + ((lt.country == lt2.country) ? 2 : 0 ) + ((lt.modifier == lt2.modifier) ? 1 : 0);
-    }
-
-    if (score1 == 0 && score2 == 0) {
-        if (firstLocale.empty && !firstValue.empty) {
-            return tuple(firstLocale, firstValue);
-        } else if (secondLocale.empty && !secondValue.empty) {
-            return tuple(secondLocale, secondValue);
-        } else {
-            return tuple(String.init, String.init);
+    alias LocaleTuple = typeof(lt);
+    static uint evaluateScore(ref scope LocaleTuple locale, ref scope LocaleTuple applicant)
+    {
+        if (locale.lang == applicant.lang)
+        {
+            if (locale.country == applicant.country)
+            {
+                if (locale.modifier == applicant.modifier)
+                {
+                    return MaxScore;
+                }
+                return 3;
+            }
+            else if (applicant.country.empty)
+            {
+                if (locale.modifier == applicant.modifier && !locale.modifier.empty)
+                    return 2;
+                else
+                    return 1;
+            }
         }
+        return 0;
     }
 
-    if (score1 >= score2) {
-        return tuple(firstLocale, firstValue);
-    } else {
-        return tuple(secondLocale, secondValue);
-    }
+    uint score1 = evaluateScore(lt, lt1);
+    if (score1 == MaxScore)
+        return firstKeyLocale;
+    uint score2 = evaluateScore(lt, lt2);
+    if (score2 == MaxScore)
+        return secondKeyLocale;
+
+    if (score1 == 0 && score2 == 0)
+        return String.init;
+
+    if (score1 >= score2)
+        return firstKeyLocale;
+    else
+        return secondKeyLocale;
 }
 
 ///
 unittest
 {
     string locale = "ru_RU.UTF-8@jargon";
-    assert(chooseLocalizedValue(string.init, "ru_RU", "Программист", "ru@jargon", "Кодер") == tuple(string.init, string.init));
-    assert(chooseLocalizedValue(locale, "fr_FR", "Programmeur", string.init, "Programmer") == tuple(string.init, "Programmer"));
-    assert(chooseLocalizedValue(locale, string.init, "Programmer", "de_DE", "Programmierer") == tuple(string.init, "Programmer"));
-    assert(chooseLocalizedValue(locale, "fr_FR", "Programmeur", "de_DE", "Programmierer") == tuple(string.init, string.init));
+    assert(selectKeyLocale(string.init, "ru_RU", "ru@jargon") == string.init);
+    assert(selectKeyLocale(locale, "fr_FR", string.init) == string.init);
+    assert(selectKeyLocale(locale, string.init, "de_DE") == string.init);
+    assert(selectKeyLocale(locale, "fr_FR", "de_DE") == string.init);
 
-    assert(chooseLocalizedValue(string.init, string.init, "Value", string.init, string.init) == tuple(string.init, "Value"));
-    assert(chooseLocalizedValue(locale, string.init, "Value", string.init, string.init) == tuple(string.init, "Value"));
-    assert(chooseLocalizedValue(locale, string.init, string.init, string.init, "Value") == tuple(string.init, "Value"));
+    assert(selectKeyLocale(locale, "ru", string.init) == "ru");
+    assert(selectKeyLocale(locale, "ru", "ru@jargon") == "ru@jargon");
+    assert(selectKeyLocale(locale, "ru_RU", string.init) == "ru_RU");
+    assert(selectKeyLocale(locale, "ru_RU", "ru") == "ru_RU");
+    assert(selectKeyLocale(locale, "ru_RU", "ru@jargon") == "ru_RU");
+    assert(selectKeyLocale(locale, "ru_RU", "ru_RU@jargon") == "ru_RU@jargon");
 
-    assert(chooseLocalizedValue(locale, "ru_RU", "Программист", "ru@jargon", "Кодер") == tuple("ru_RU", "Программист"));
-    assert(chooseLocalizedValue(locale, "ru_RU", "Программист", "ru_RU@jargon", "Кодер") == tuple("ru_RU@jargon", "Кодер"));
-
-    assert(chooseLocalizedValue(locale, "ru", "Разработчик", "ru_RU", "Программист") == tuple("ru_RU", "Программист"));
+    assert(selectKeyLocale("en_US.UTF-8", "en", "en_GB") == "en");
+    assert(selectKeyLocale("en_US.UTF-8", string.init, "en_GB") == string.init);
 }
+
+/**
+ * Same as $(D selectKeyLocale), but returns a locale bundled with a value in one tuple.
+ */
+@nogc @trusted auto selectLocalizedValue(String)(
+    scope String locale,
+    String firstLocale,  String firstValue,
+    String secondLocale, String secondValue) pure nothrow
+    if (isSomeString!String && is(ElementEncodingType!String : char))
+{
+    alias SelectedResult = Tuple!(String, "locale", String, "value");
+
+    auto selected = selectKeyLocale(locale, firstLocale, secondLocale);
+
+    if (selected.empty)
+    {
+        if (!firstValue.empty && firstLocale.empty)
+            return SelectedResult(selected, firstValue);
+        else if (!secondValue.empty && secondLocale.empty)
+            return SelectedResult(selected, secondValue);
+    }
+    if (selected == firstLocale)
+        return SelectedResult(firstLocale, firstValue);
+    else if (selected == secondLocale)
+        return SelectedResult(secondLocale, secondValue);
+
+    return SelectedResult(String.init, String.init);
+}
+
+///
+unittest
+{
+    string locale = "ru_RU.UTF-8@jargon";
+    assert(selectLocalizedValue(string.init, "ru_RU", "Программист", "ru@jargon", "Кодер") == tuple(string.init, string.init));
+    assert(selectLocalizedValue(locale, "fr_FR", "Programmeur", string.init, "Programmer") == tuple(string.init, "Programmer"));
+    assert(selectLocalizedValue(locale, string.init, "Programmer", "de_DE", "Programmierer") == tuple(string.init, "Programmer"));
+    assert(selectLocalizedValue(locale, "fr_FR", "Programmeur", "de_DE", "Programmierer") == tuple(string.init, string.init));
+
+    assert(selectLocalizedValue(string.init, string.init, "Value", string.init, string.init) == tuple(string.init, "Value"));
+    assert(selectLocalizedValue(locale, string.init, "Value", string.init, string.init) == tuple(string.init, "Value"));
+    assert(selectLocalizedValue(locale, string.init, string.init, string.init, "Value") == tuple(string.init, "Value"));
+
+    assert(selectLocalizedValue(locale, "ru_RU", "Программист", "ru@jargon", "Кодер") == tuple("ru_RU", "Программист"));
+    assert(selectLocalizedValue(locale, "ru_RU", "Программист", "ru_RU@jargon", "Кодер") == tuple("ru_RU@jargon", "Кодер"));
+
+    assert(selectLocalizedValue(locale, "ru", "Разработчик", "ru_RU", "Программист") == tuple("ru_RU", "Программист"));
+}
+
+alias chooseLocalizedValue = selectLocalizedValue;
 
 /**
  * Check if value needs to be escaped. This function is currently tolerant to single slashes and tabs.
