@@ -134,11 +134,11 @@ KeyNeverGetThere=Value4
     auto onGroup = delegate ActionOnGroup(string groupName) {
         if (groupName == "ToSkip") {
             return ActionOnGroup.skip;
-        } else if (groupName == "ToProceed") {
-            return ActionOnGroup.proceed;
         } else if (groupName == "ToStopAfter") {
             return ActionOnGroup.stopAfter;
-        } else assert(false);
+        } else {
+            return ActionOnGroup.proceed;
+        }
     };
     auto onKeyValue = delegate void(string key, string value, string groupName) {
         assert((groupName == "ToProceed" && key == "KeyInNormalGroup" && value == "Value2") ||
