@@ -14,10 +14,11 @@ module inilike.file;
 
 private {
     import std.exception;
+    import std.algorithm.iteration : map, filter;
+    import std.algorithm.searching : canFind;
     import inilike.common;
 }
 
-import std.algorithm : map;
 public import inilike.range;
 public import inilike.exception;
 import inilike.read;

@@ -13,7 +13,7 @@
 module inilike.range;
 
 import inilike.common;
-
+import std.algorithm.searching : until;
 
 /**
  * Object for iterating through ini-like file entries.

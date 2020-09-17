@@ -13,7 +13,8 @@
 module inilike.common;
 
 package {
-    import std.algorithm;
+    import std.algorithm.searching : findSplit, find;
+    import std.algorithm.comparison : equal;
     import std.range;
     import std.string;
     import std.traits;
