@@ -60,7 +60,7 @@ private @nogc @safe auto simpleStripRight(inout(char)[] s) pure nothrow
 /**
  * Test whether the string represents a comment.
  */
-@nogc @safe bool isComment(const(char)[] s) pure nothrow
+@nogc @safe bool isComment(scope const(char)[] s) pure nothrow
 {
     s = s.simpleStripLeft;
     return !s.empty && s[0] == '#';
@@ -79,7 +79,7 @@ unittest
  * Test whether the string represents a group header.
  * Note: "[]" is not considered to be a valid group header.
  */
-@nogc @safe bool isGroupHeader(const(char)[] s) pure nothrow
+@nogc @safe bool isGroupHeader(scope const(char)[] s) pure nothrow
 {
     s = s.simpleStripRight;
     return s.length > 2 && s[0] == '[' && s[$-1] == ']';
@@ -147,7 +147,7 @@ unittest
     assert(parseKeyValue("Key=Value".dup) == tuple("Key".dup, "Value".dup));
 }
 
-private @nogc @safe bool simpleCanFind(in char[] str, char c) pure nothrow
+private @nogc @safe bool simpleCanFind(scope const(char)[] str, char c) pure nothrow
 {
     for (size_t i=0; i<str.length; ++i) {
         if (str[i] == c) {
@@ -160,7 +160,7 @@ private @nogc @safe bool simpleCanFind(in char[] str, char c) pure nothrow
 /**
  * Test whether the string is valid key, i.e. does not need escaping, is not a comment and not empty string.
  */
-@nogc @safe bool isValidKey(in char[] key) pure nothrow
+@nogc @safe bool isValidKey(scope const(char)[] key) pure nothrow
 {
     if (key.empty || key.simpleStripLeft.simpleStripRight.empty) {
         return false;
@@ -187,10 +187,10 @@ unittest
 *
 * Not actually used in $(D inilike.file.IniLikeFile), but can be used in derivatives.
 * Only the characters A-Za-z0-9- may be used in key names.
-* Note: this function automatically separate key from locale. Locale is validated against isValidKey.
+* Note: this function automatically separate key from locale. Locale is validated against $(D isValidKey).
 * See_Also: $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s03.html, Basic format of the file), $(D isValidKey)
 */
-@nogc @safe bool isValidDesktopFileKey(in char[] desktopKey) pure nothrow {
+@nogc @safe bool isValidDesktopFileKey(scope const(char)[] desktopKey) pure nothrow {
     auto t = separateFromLocale(desktopKey);
     auto key = t[0];
     auto locale = t[1];
@@ -229,7 +229,7 @@ unittest
  * Test whether the entry value represents true.
  * See_Also: $(D isFalse), $(D isBoolean)
  */
-@nogc @safe bool isTrue(const(char)[] value) pure nothrow {
+@nogc @safe bool isTrue(scope const(char)[] value) pure nothrow {
     return (value == "true" || value == "1");
 }
 
@@ -245,7 +245,7 @@ unittest
  * Test whether the entry value represents false.
  * See_Also: $(D isTrue), $(D isBoolean)
  */
-@nogc @safe bool isFalse(const(char)[] value) pure nothrow {
+@nogc @safe bool isFalse(scope const(char)[] value) pure nothrow {
     return (value == "false" || value == "0");
 }
 
@@ -261,7 +261,7 @@ unittest
  * Check if the entry value can be interpreted as boolean value.
  * See_Also: $(D isTrue), $(D isFalse)
  */
-@nogc @safe bool isBoolean(const(char)[] value) pure nothrow {
+@nogc @safe bool isBoolean(scope const(char)[] value) pure nothrow {
     return isTrue(value) || isFalse(value);
 }
 
