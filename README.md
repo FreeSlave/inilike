@@ -2,7 +2,7 @@
 
 Inilike is D library for parsing **.ini-like** files used in Freedesktop systems in various places (.desktop files, icon themes, mimeapps.list, mimeinfo.cache, trashcan files on freedesktop, etc.)
 
-[![Build Status](https://travis-ci.org/FreeSlave/inilike.svg?branch=master)](https://travis-ci.org/FreeSlave/inilike?branch=master) [![Coverage Status](https://coveralls.io/repos/FreeSlave/inilike/badge.svg?branch=master&service=github)](https://coveralls.io/github/FreeSlave/inilike?branch=master)
+[![Build Status](https://github.com/FreeSlave/inilike/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/FreeSlave/inilike/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/FreeSlave/inilike/badge.svg?branch=master&service=github)](https://coveralls.io/github/FreeSlave/inilike?branch=master)
 
 [Online documentation](https://freeslave.github.io/d-freedesktop/docs/inilike.html)
 
