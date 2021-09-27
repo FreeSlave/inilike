@@ -428,7 +428,7 @@ private:
     in {
         assert(toPut !is null);
     }
-    body {
+    do {
         if (_head) {
             _head.prev = toPut;
             toPut.next = _head;
@@ -443,7 +443,7 @@ private:
     in {
         assert(toPut !is null);
     }
-    body {
+    do {
         if (_tail) {
             _tail.next = toPut;
             toPut.prev = _tail;
@@ -459,7 +459,7 @@ private:
         assert(toPut !is null);
         assert(node !is null);
     }
-    body {
+    do {
         toPut.prev = node.prev;
         if (toPut.prev) {
             toPut.prev.next = toPut;
@@ -477,7 +477,7 @@ private:
         assert(toPut !is null);
         assert(node !is null);
     }
-    body {
+    do {
         toPut.next = node.next;
         if (toPut.next) {
             toPut.next.prev = toPut;
@@ -494,7 +494,7 @@ private:
     in {
         assert(node !is null);
     }
-    body {
+    do {
         if (node.next) {
             node.next.prev = node.prev;
         }
@@ -850,7 +850,7 @@ public:
     in {
         assert(!value.needEscaping);
     }
-    body {
+    do {
         import std.stdio;
         auto node = _listMap.getNode(key);
         if (node) {
@@ -1215,7 +1215,7 @@ public:
     in {
         assert(!node.isNull());
     }
-    body {
+    do {
         return _listMap.addBefore(node.node, makeCommentLine(comment));
     }
 
@@ -1228,7 +1228,7 @@ public:
     in {
         assert(!node.isNull());
     }
-    body {
+    do {
         return _listMap.addAfter(node.node, makeCommentLine(comment));
     }
 
@@ -1645,7 +1645,7 @@ protected:
     in {
         assert(group !is null);
     }
-    body {
+    do {
         return GroupNode(_listMap.insertBack(group.groupName, group));
     }
 
@@ -1657,7 +1657,7 @@ protected:
     in {
         assert(group !is null);
     }
-    body {
+    do {
         return GroupNode(_listMap.append(group));
     }
 
