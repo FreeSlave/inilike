@@ -846,7 +846,7 @@ public:
         _name = groupName;
     }
 
-    private @safe final string setKeyValueImpl(string key, string value)
+    private @trusted final string setKeyValueImpl(string key, string value)
     in {
         assert(!value.needEscaping);
     }
@@ -1193,7 +1193,7 @@ public:
      * Returns: Added $(D LineNode).
      * See_Also: $(D byIniLine), $(D prependComment), $(D addCommentBefore), $(D addCommentAfter)
      */
-    @safe final auto appendComment(string comment) nothrow pure {
+    @trusted final auto appendComment(string comment) nothrow pure {
         return lineNode(_listMap.append(makeCommentLine(comment)));
     }
 
@@ -1202,7 +1202,7 @@ public:
      * Returns: Added $(D LineNode).
      * See_Also: $(D byIniLine), $(D appendComment), $(D addCommentBefore), $(D addCommentAfter)
      */
-    @safe final auto prependComment(string comment) nothrow pure {
+    @trusted final auto prependComment(string comment) nothrow pure {
         return lineNode(_listMap.prepend(makeCommentLine(comment)));
     }
 
