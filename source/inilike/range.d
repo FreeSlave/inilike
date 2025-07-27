@@ -191,7 +191,8 @@ KeyValue6`;
 @trusted auto iniLikeFileReader(string fileName)
 {
     import std.stdio : File;
-    return iniLikeRangeReader(File(fileName, "r").byLineCopy());
+    auto f = File(fileName, "r");
+    return iniLikeRangeReader(f.byLineCopy());
 }
 
 /**
